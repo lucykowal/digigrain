@@ -32,3 +32,21 @@ Proposed engine:
 
 ## Process
 Write C reference (host-compiled) + Python fixed-point model first, assert bit-exactness against the on-target code in Unicorn (`digitakt-testing`), then integrate.
+
+## ColdFire C optimisation notes (from tuning the grain loops, measured)
+- Workflow: write the C reference and a Python model first (bit-exact), then optimise only with the model's tests green
+  (`tests/test_grain.py`, including the random edge fuzz). Count instructions with `tests/emu/grain_bench.py`
+  (compiles `mod/grain.c` with the cross gcc and runs `gr_block` in the patched Unicorn: seconds) and confirm in the
+  firmware with `tests/emu/bench.sh`. Look at the generated code: `m68k-elf-gcc -mcpu=54455 -O2 -ffreestanding
+  -fno-builtin -nostdlib -fno-pic -fno-pie -fomit-frame-pointer -I mod -S mod/grain.c -o x.s`.
+- `asr/lsr #imm` only goes up to 8 on ColdFire: a shift by 14 or 15 costs `moveq` + register shift (2 insns). A shift by 16 is
+  `swap` (+ `ext.l`). Make products land on a 16-bit boundary: store tables as `2 x Q15` unsigned Q16 so
+  `(s * w16) >> 16 == (s * w15) >> 15` exactly (no overflow: 32768 x 65534 < 2^31).
+- 32-bit `muls.l` and hardware divide (`remu.l`) are available with `-mcpu=54455`; no libgcc is linked, so avoid 64-bit math.
+- Prove bounds once per block and run a check-free loop with state in locals; keep the exact checked loop as the fallback
+  near ends. Mark hot loops `noinline` so each gets its own registers (an inlined merged loop kept a branch inside and spilled
+  to the stack, ~45 instr/sample). `do { } while (--n)` (n >= 1) saves the `moveq/cmp` count test.
+- Specialise on loop-invariant cases: unity-speed grains (integer step, fraction 0) skip interpolation (13 vs ~26 instr/sample);
+  a per-voice cached window table replaces per-sample shape blending; random shapes use pre-blended global tables.
+- Costs measured: grain-sample 13 (integer step) to ~26 (interpolated) instructions; per-block overhead ~300 (clear/clamp loops).
+- Instructions are not cycles: confirm margins with `emu.fwcheck` (timing mode) under load.

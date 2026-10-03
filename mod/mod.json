@@ -5,7 +5,7 @@
  "category": "Machines",
  "author": "lucykowal",
  "license": "GPL-2.0-or-later",
- "description": "Adds a GRANULAR SRC machine (id 6): a granular playback engine. STRT = position, LEN = grain size, BR = density, TUNE = pitch, LEV = level.",
+ "description": "Adds a GRANULAR SRC machine (id 6): a granular playback engine. TUNE = speed (pitch and grain length), PLAY = direction, STRT = grain position, DENS = grain rate (noon 0 Hz, periodic CCW, random CW), SHAPE = window (gate to sine to decay), RAND = random pitch/shape/position, LEV = level.",
  "device": "digitakt-mk1",
  "os": "1.53",
  "sources": [

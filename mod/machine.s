@@ -1,5 +1,5 @@
 | SPDX-License-Identifier: GPL-2.0-or-later
-| lucys-granular: the GRANULAR SRC machine's descriptor for core 2.1's
+| digigrain: the GRANULAR SRC machine's descriptor for core 2.1's
 | core_machines table (elekloader docs/ADAPTING.md, "SRC machines").
 | Scaffold: it takes ONESHOT's parameters and plays as ONESHOT, so a GRANULAR
 | track behaves like ONESHOT until the engine overrides the render.

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-/* lucys-granular: the GRANULAR machine's voice renderer (Digitakt mk1 OS 1.53).
+/* digigrain: the GRANULAR machine's voice renderer (Digitakt mk1 OS 1.53).
  *
  * The machine plays as ONESHOT, so the stock voice (the "shadow") still runs: it gives us
  * note on/off, the sample slot, the playback speed (V+4's per-block advance, which includes

@@ -1,5 +1,5 @@
 | SPDX-License-Identifier: GPL-2.0-or-later
-| lucys-granular: the SRC page layout for the GRANULAR machine (OS 1.53).
+| digigrain: the SRC page layout for the GRANULAR machine (OS 1.53).
 | 0x400657cc(machine) returns the page's layout entry: 11 longs {title string, subtitle string,
 | eight parameter ids (one per knob, A..H), 10}. The stock function gives every machine past 3
 | SLICE's entry. This hook returns ours for machine 6 and runs the stock code for anything else
