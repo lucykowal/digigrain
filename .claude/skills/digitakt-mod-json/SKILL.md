@@ -9,12 +9,12 @@ Authoritative: `../elekloader/elekloader/sdk/build.py` and `docs/FORMAT.md`; tem
 
 ```json
 {
- "id": "lucys-granular", "version": "0.0.1",
+ "id": "digigrain", "version": "0.0.1",
  "title": "...", "category": "Machines", "author": "...",
  "license": "GPL-2.0-or-later", "description": "...",
  "device": "digitakt-mk1", "os": "1.53",
  "sources": ["granular.c"],
- "subscribe": [{"event": "ev_draw", "fn": "lucys_granular_draw", "order": 60}],
+ "subscribe": [{"event": "ev_draw", "fn": "digigrain_granular_draw", "order": 60}],
  "requires": ["core"]
 }
 ```

@@ -21,9 +21,9 @@ GROUP = 0x401c6afe                       # the stock "Sample" group string
 
 # id: (copy-from id, slot, min, max, default, name symbol, short symbol)
 NEW = {
-    1: (0x6e, 0x13, 0, 0x7f00, 0x4000, "lucys_str_dens_long", "lucys_str_dens"),
-    2: (0x71, 0x16, 0, 0x7f00, 0x4000, "lucys_str_shape_long", "lucys_str_shape"),
-    3: (0x72, 0x17, 0, 0x7f00, 0x0000, "lucys_str_rand_long", "lucys_str_rand"),
+    1: (0x6e, 0x13, 0, 0x7f00, 0x4000, "digigrain_str_dens_long", "digigrain_str_dens"),
+    2: (0x71, 0x16, 0, 0x7f00, 0x4000, "digigrain_str_shape_long", "digigrain_str_shape"),
+    3: (0x72, 0x17, 0, 0x7f00, 0x0000, "digigrain_str_rand_long", "digigrain_str_rand"),
 }
 OWNER = 6                                # not 0-3, so Randomize lists never show them for stock machines
 

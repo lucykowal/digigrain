@@ -5,7 +5,7 @@
  * note on/off, the sample slot, the playback speed (V+4's per-block advance, which includes
  * TUNE and the note) and a stock PLAY loop/one-shot lifetime; everything after the synth
  * (filter, amp, pan, level, FX) works on the block we write. synth.s calls
- * lucys_granular_pre() before the stock synth and lucys_granular_render() after it.
+ * digigrain_granular_pre() before the stock synth and digigrain_granular_render() after it.
  * The latter overwrites the 32 x int32 block at 0x80001a18 + 128 * v of every GRANULAR voice.
  *
  * Controls (the SRC page's eight knobs; words of the voice's parameter block):
@@ -61,7 +61,7 @@ static struct {
 } st[8];
 
 /* Before the stock synth: GRANULAR voices get a full-sample, no-loop-point shadow. */
-void lucys_granular_pre(void)
+void digigrain_granular_pre(void)
 {
     int v;
     for (v = 0; v < 8; v++)
@@ -144,7 +144,7 @@ static void render_voice(int v)
 }
 
 /* After the stock synth filled every voice's block. */
-void lucys_granular_render(void)
+void digigrain_granular_render(void)
 {
     int v;
     for (v = 0; v < 8; v++)
@@ -163,7 +163,7 @@ void lucys_granular_render(void)
 static u32 seen_kit;
 static u8 seen_machine[8];
 
-void lucys_granular_tick(void *ctrl)
+void digigrain_granular_tick(void *ctrl)
 {
     u32 kit = *(volatile u32 *)UI_KIT;
     int t;

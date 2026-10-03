@@ -10,31 +10,31 @@
         .equ    MACHINE,    6
 
         .section .run, "ax"
-        .globl  lucys_layout
-lucys_layout:
+        .globl  digigrain_layout
+digigrain_layout:
         moveq   #3, %d1                         | the replaced instructions
         move.l  4(%sp), %d0
         moveq   #MACHINE, %d1
         cmp.l   %d0, %d1
         bne.s   1f
-        move.l  #lucys_layout_entry, %d0
+        move.l  #digigrain_layout_entry, %d0
         rts
 1:      moveq   #3, %d1
         jmp     LAYOUT_ON
 
         .balign 4
-lucys_layout_entry:
+digigrain_layout_entry:
         .long   STR_A, STR_B
         .long   0x6c, 0x6d, 0x70, 0x6f, 1, 2, 3, 0x73   | TUNE PLAY STRT(position) SAMP DENS SHAPE RAND LEV
         .long   0x0a
 
 | Labels for descriptors 1-3 (tools/gen_page_sites.py): long name and the knob's short label.
-        .globl  lucys_str_dens_long, lucys_str_dens, lucys_str_shape_long, lucys_str_shape
-        .globl  lucys_str_rand_long, lucys_str_rand
-lucys_str_dens_long:   .asciz  "Grain Density"
-lucys_str_dens:        .asciz  "DENS"
-lucys_str_shape_long:  .asciz  "Grain Shape"
-lucys_str_shape:       .asciz  "SHAPE"
-lucys_str_rand_long:   .asciz  "Randomness"
-lucys_str_rand:        .asciz  "RAND"
+        .globl  digigrain_str_dens_long, digigrain_str_dens, digigrain_str_shape_long, digigrain_str_shape
+        .globl  digigrain_str_rand_long, digigrain_str_rand
+digigrain_str_dens_long:   .asciz  "Grain Density"
+digigrain_str_dens:        .asciz  "DENS"
+digigrain_str_shape_long:  .asciz  "Grain Shape"
+digigrain_str_shape:       .asciz  "SHAPE"
+digigrain_str_rand_long:   .asciz  "Randomness"
+digigrain_str_rand:        .asciz  "RAND"
         .balign 2

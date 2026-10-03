@@ -1,4 +1,4 @@
-# lucy's mod
+# Digigrain
 
 Custom firmware mods for the Elektron Digitakt (mk1, OS 1.53), built with
 [elekloader](../elekloader).

@@ -10,8 +10,8 @@
 
         .section .run, "ax"
         .balign 4
-        .globl  lucys_granular_machine
-lucys_granular_machine:
+        .globl  digigrain_granular_machine
+digigrain_granular_machine:
         .long   MACHINE_ID, str_name, str_short, icon, PARAMS_ONESHOT, PLAYS_ONESHOT
 
 | 11 x 7 menu icon, a word per column, rows in bits 31-25: scattered grains.

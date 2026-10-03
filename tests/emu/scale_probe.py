@@ -139,9 +139,9 @@ def spin(m, pc, *args, **kw):
         uc.hook_add(UC_HOOK_CODE, probe, begin=AFTER_SYNTH, end=AFTER_SYNTH)
         if MAP:
             state["calls"] = {}
-            if os.environ.get("MEASURE"):     # instructions per lucys_granular_render call, steps 2400-2440
-                lo = MAP["lucys_synth_all"]
-                ret = lo + 42                  # the instruction after `jsr lucys_granular_render`
+            if os.environ.get("MEASURE"):     # instructions per digigrain_granular_render call, steps 2400-2440
+                lo = MAP["digigrain_synth_all"]
+                ret = lo + 42                  # the instruction after `jsr digigrain_granular_render`
                 span = (0x47be0000, 0x47be4000)
                 cnt = {"inside": False, "n": 0, "calls": []}
                 def enter(u, a, sz, d):
@@ -154,7 +154,7 @@ def spin(m, pc, *args, **kw):
                     if cnt["inside"]:
                         cnt["inside"] = False
                         cnt["calls"].append(cnt["n"])
-                uc.hook_add(UC_HOOK_CODE, enter, begin=MAP["lucys_granular_render"], end=MAP["lucys_granular_render"])
+                uc.hook_add(UC_HOOK_CODE, enter, begin=MAP["digigrain_granular_render"], end=MAP["digigrain_granular_render"])
                 uc.hook_add(UC_HOOK_CODE, tick, begin=span[0], end=span[1])
                 uc.hook_add(UC_HOOK_CODE, leave, begin=ret, end=ret)
                 state["cnt"] = cnt
@@ -166,7 +166,7 @@ def spin(m, pc, *args, **kw):
                     print("gr_block: len", ln, "params", struct.unpack(">8i", rd(u, pp, 32)))
             if "gr_block" in MAP:
                 uc.hook_add(UC_HOOK_CODE, at_block, begin=MAP["gr_block"], end=MAP["gr_block"])
-            for name in ("lucys_synth_all", "lucys_granular_render", "lucys_granular_machine"):
+            for name in ("digigrain_synth_all", "digigrain_granular_render", "digigrain_granular_machine"):
                 if name in MAP:
                     uc.hook_add(UC_HOOK_CODE, (lambda nm: lambda u, a, s, d: state["calls"].__setitem__(nm, state["calls"].get(nm, 0) + 1))(name),
                                 begin=MAP[name], end=MAP[name])
@@ -226,7 +226,7 @@ if rows:
                                                            max(r[5] for r in rows) // GAIN_UNIT))
 if state.get("cnt") and state["cnt"]["calls"]:
     c = state["cnt"]["calls"]
-    print("instructions per lucys_granular_render call: n=%d avg %d max %d" % (len(c), sum(c) // len(c), max(c)))
+    print("instructions per digigrain_granular_render call: n=%d avg %d max %d" % (len(c), sum(c) // len(c), max(c)))
 if len(pcm) > 4:
     s16 = struct.unpack("<%dh" % (len(pcm) // 2), pcm)
     left = s16[0::2]
