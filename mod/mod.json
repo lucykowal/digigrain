@@ -1,0 +1,16 @@
+{
+ "id": "lucys-granular",
+ "version": "0.0.1",
+ "title": "Lucy's granular",
+ "category": "Machines",
+ "author": "lucykowal",
+ "license": "GPL-2.0-or-later",
+ "description": "Adds a granular playback SRC machine. Scaffold only: draws a marker.",
+ "device": "digitakt-mk1",
+ "os": "1.53",
+ "sources": ["granular.c"],
+ "subscribe": [
+  {"event": "ev_draw", "fn": "lucys_granular_draw", "order": 60}
+ ],
+ "requires": ["core"]
+}

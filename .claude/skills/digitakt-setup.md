@@ -19,11 +19,11 @@ Initialize a new Digitakt mod with the correct directory structure, metadata, an
 2. **Create mod.json metadata file** with:
    - `id`: unique mod identifier (alphanumeric, lowercase, no spaces)
    - `version`: semantic version (e.g., "1.0.0")
-   - `device`: "digitakt" (mk1 or mk2)
-   - `target_os`: stock OS version by hash (from elekloader)
+   - `device`: "digitakt-mk1"
+   - `os`: stock OS release ("1.53")
    - `title`, `category`, `author`, `description`
    - `sources`: array of `.c` and `.s` files to compile
-   - `subscribe`: event handlers (ev_draw, ev_tick, ev_key, ev_enc, ev_settings, ev_render_in, ev_render_out)
+   - `subscribe`: `{event, fn, order}` entries; events (ev_draw, ev_tick, ev_key, ev_enc, ev_settings, ev_render_in, ev_render_out)
    - `sites`: firmware patches (address, stock bytes, operation)
    - `requires`: dependencies (usually `["core"]`)
    - `conflicts`: incompatible mods

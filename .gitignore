@@ -3,3 +3,7 @@
 out/
 .envrc
 .direnv/
+.venv/
+__pycache__/
+*.syx
+*.bin

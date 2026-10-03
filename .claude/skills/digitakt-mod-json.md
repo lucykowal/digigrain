@@ -14,8 +14,8 @@ The `mod.json` file declares a mod's metadata, firmware patches, event subscript
 {
   "id": "mymod",
   "version": "1.0.0",
-  "device": "digitakt",
-  "target_os": "Digitakt_OS1.53.syx",
+  "device": "digitakt-mk1",
+  "os": "1.53",
   "title": "My Custom Mod",
   "category": "Effect",
   "author": "Your Name",
@@ -24,8 +24,8 @@ The `mod.json` file declares a mod's metadata, firmware patches, event subscript
   "subscribe": [
     {
       "event": "ev_draw",
-      "handler": "mymod_on_draw",
-      "priority": 0
+      "fn": "mymod_on_draw",
+      "order": 60
     }
   ]
 }
@@ -37,8 +37,8 @@ The `mod.json` file declares a mod's metadata, firmware patches, event subscript
 |-------|------|---------|
 | `id` | string | Unique identifier (lowercase, alphanumeric, no spaces); used for symbol prefixes |
 | `version` | string | Semantic version (e.g., "1.2.3") |
-| `device` | string | "digitakt" (or "digitone", "analog4", etc.) |
-| `target_os` | string | Stock OS filename; mod is tied to one version (enforced by hash) |
+| `device` | string | "digitakt-mk1" (see elekloader `docs/DEVICES.md`) |
+| `os` | string | Stock OS release, e.g. "1.53"; mod is tied to one release (enforced by hash) |
 | `title` | string | Human-readable name (shown in loader UI) |
 | `category` | string | "Effect", "Tool", "Synth", "Sampler", "Utility" |
 | `author` | string | Your name or team |
@@ -63,8 +63,8 @@ Event handlers the mod hooks into. Each entry:
 ```json
 {
   "event": "ev_draw",        // "ev_tick", "ev_key", "ev_enc", "ev_settings", "ev_render_in", "ev_render_out"
-  "handler": "mymod_on_draw", // Function name in source (no mod prefix needed; SDK adds it)
-  "priority": 0               // Execution order (lower runs first; default 0)
+  "fn": "mymod_on_draw", // Function name in source (no mod prefix needed; SDK adds it)
+  "order": 60               // Execution order (lower runs first; default 0)
 }
 ```
 
@@ -125,8 +125,8 @@ Claim allocations: settings pages, kit slots, sound slots, etc.
 {
   "id": "digieq",
   "version": "2.0.1",
-  "device": "digitakt",
-  "target_os": "Digitakt_OS1.53.syx",
+  "device": "digitakt-mk1",
+  "os": "1.53",
   "title": "Digitakt EQ",
   "category": "Effect",
   "author": "Elektron",
@@ -137,7 +137,7 @@ Claim allocations: settings pages, kit slots, sound slots, etc.
     "src/ui.c"
   ],
   "subscribe": [
-    {"event": "ev_tick", "handler": "digieq_on_tick"},
+    {"event": "ev_tick", "fn": "digieq_on_tick", "order": 60},
     {"event": "ev_draw", "handler": "digieq_on_draw"},
     {"event": "ev_enc", "handler": "digieq_on_enc"},
     {"event": "ev_settings", "handler": "digieq_on_settings"}
@@ -155,3 +155,5 @@ Claim allocations: settings pages, kit slots, sound slots, etc.
 - **Examples**: `digi1_mods/mods/*/mod.json`
 - **Validation**: `python -m elekloader.lint <mod.elemod> --json`
 
+
+> Note: field names here follow `elekloader/examples/hello-marker/mod.json` and `docs/ADAPTING.md` (authoritative). Earlier drafts used `handler`/`priority`/`target_os`.
