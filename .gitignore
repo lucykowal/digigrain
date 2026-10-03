@@ -8,3 +8,4 @@ __pycache__/
 *.syx
 *.bin
 .mcp.json
+.DS_Store
