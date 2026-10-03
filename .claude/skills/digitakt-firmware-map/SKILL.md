@@ -64,3 +64,8 @@ Per-voice mono blocks at `0x80001a18 + 128*v` are the cleanest injection point: 
 - **Window fn args** (0x40074df2): `(sp+4)=param block ptr, +8 note<<16, +12 sample length, +16 voice`. Only called for SLICE-like voices.
 - **Measured:** at unity pitch `V+4` advances **32 per block** (sample frames), slot byte at V+0x5c, `on` byte V+0x28 = 1 while playing and 0 after the sample ends (V+4 reaches the sample length, the last blocks fade to ~0); table entry for a 48 kHz sample has ratio 0x40000000, length = frames, PCM in DDR (e.g. 0x4bbaf630).
 - **Pitch for a shadow voice:** the stock voice (a new machine that "plays as ONESHOT") keeps advancing V+4 each block by `32 * pitch_ratio` source samples, with TUNE/LFO/glide already included. A granular engine can read `V+4` deltas as its pitch and `V+4` as its playhead instead of reimplementing note->ratio (note->ratio table not located).
+
+### Params and level facts (measured in digiemu)
+- Per-voice params exist in three copies: kit sound block (`kit+0x20+t*0xa2+0x14`, reloaded into the voice on a trig), engine copy `0x80001502 + 106*v` (16-bit words, the knob values), smoothed `0x80002772 + 106*v` (16-bit), and a 32-bit expanded copy `0x80002B50 + 212*v` (word << 16) that the synth uses for start/length. SRC knob words: 17 TUNE, 18 PLAY (value<<8: 0 REV,1 REV.L,2 FWD.L,3 FWD), 19 BR, 20 SAMP (slot<<8), 21 STRT, 22 LEN, 23 LOOP, 24 LEV; range 0..127<<8 (32512), TUNE centre 16384.
+- Bit reduction (BR) acts inside the voice synth (block values collapse to a constant at BR=127), i.e. before any hook placed after `0x400757fe`.
+- LEV gain = (LEV/100)^2.

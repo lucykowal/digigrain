@@ -3,8 +3,9 @@
 Custom firmware mods for the Elektron Digitakt (mk1, OS 1.53), built with
 [elekloader](../elekloader).
 
-Planned: a granular playback SRC machine. `mod/` is currently a scaffold that
-draws a marker.
+A granular playback SRC machine (id 6, GRANULAR). The engine runs in the
+emulator on the real firmware; the SRC page labels and ranges, polyphonic cost
+and hardware testing are still open (see `.claude/skills/digitakt-machines`).
 
 ## Prerequisites
 
@@ -41,9 +42,9 @@ startup menu, then send the stock `.syx`. Never commit firmware (`*.syx`,
 
 ## Future work
 
-- Machine registration and SRC page hooks for the granular engine
-- Grain buffer within the shared RAM budget (128 KB) and `.fast` SRAM (2304 B)
-- Unicorn tests for the DSP hooks
+- SRC page layout hook so the knobs read DENS / SHAPE / RAND with bipolar ranges
+- Optimise the grain loop (about 65 instructions per grain-sample today)
+- Hardware testing; Poisson random intervals
 
 ## Granular Parameters
 
@@ -57,3 +58,14 @@ startup menu, then send the stock `.syx`. Never commit firmware (`*.syx`,
   clockwise for a quick decay.
 - RAND: Level of tune, shape, and position randomization between grains
 - LEV: Source level
+
+### Implementation notes
+
+- TUNE sets the playback speed through the stock voice; grains read a fixed
+  50 ms of source (at 1x), so speed changes pitch and grain length together.
+- BR is the (fixed) grain position; PLAY picks the grain direction (the `.L`
+  modes also keep the voice sustaining).
+- DENS: periodic grains at 0.25 to 120 Hz counter-clockwise of noon, random
+  intervals (same mean rates) clockwise. RAND randomizes pitch (up to +-12
+  semitones), shape and position per grain.
+- Until the page layout is hooked, the page still shows SLICE's labels.

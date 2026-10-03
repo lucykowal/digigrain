@@ -43,6 +43,7 @@ sys.modules["tkinter"] = tk
 for n in ("ttk", "messagebox", "filedialog", "font"):
     sys.modules["tkinter." + n] = types.ModuleType("tkinter." + n)
 from unicorn import UC_HOOK_CODE  # noqa: E402
+from unicorn.m68k_const import UC_M68K_REG_A7  # noqa: E402
 
 MAP = {}
 if os.environ.get("GRANULAR"):        # symbol addresses of our build, from elekloader's linker
@@ -111,6 +112,12 @@ def probe(uc, addr, size, data):
             on = rd(uc, vs + 0x28, 1)[0]
             ptr, _, length, ratio = struct.unpack(">IIII", rd(uc, SMP_TAB + 16 * slot, 16))
             state["rows"].append((state["n"], v, on, slot, pos, peak, ptr, length, ratio))
+            if v == 0 and 70 <= len([r for r in state["rows"] if r[1] == 0]) <= 72:
+                print("blk", len([r for r in state["rows"] if r[1] == 0]), "V+4", pos, [x // GAIN_UNIT for x in blk[:12]])
+            if v == 0 and peak > 1000000:
+                tz = min(((x & -x).bit_length() - 1) if x else 31 for x in blk)
+                state["tz"] = min(state.get("tz", 31), tz)
+                state["distinct"] = max(state.get("distinct", 0), len(set(blk)))
 
 
 _spin = G.spin
@@ -123,6 +130,33 @@ def spin(m, pc, *args, **kw):
         uc.hook_add(UC_HOOK_CODE, probe, begin=AFTER_SYNTH, end=AFTER_SYNTH)
         if MAP:
             state["calls"] = {}
+            if os.environ.get("MEASURE"):     # instructions per lucys_granular_render call, steps 2400-2440
+                lo = MAP["lucys_synth_all"]
+                ret = lo + 42                  # the instruction after `jsr lucys_granular_render`
+                span = (0x47be0000, 0x47be4000)
+                cnt = {"inside": False, "n": 0, "calls": []}
+                def enter(u, a, sz, d):
+                    if 2400 <= state["n"] <= 2440:
+                        cnt["inside"], cnt["n"] = True, 0
+                def tick(u, a, sz, d):
+                    if cnt["inside"]:
+                        cnt["n"] += 1
+                def leave(u, a, sz, d):
+                    if cnt["inside"]:
+                        cnt["inside"] = False
+                        cnt["calls"].append(cnt["n"])
+                uc.hook_add(UC_HOOK_CODE, enter, begin=MAP["lucys_granular_render"], end=MAP["lucys_granular_render"])
+                uc.hook_add(UC_HOOK_CODE, tick, begin=span[0], end=span[1])
+                uc.hook_add(UC_HOOK_CODE, leave, begin=ret, end=ret)
+                state["cnt"] = cnt
+            def at_block(u, a, sz, d):
+                if os.environ.get("TRACE_GR") and state["n"] >= 2300 and state.get("tr", 0) < 6:
+                    sp = u.reg_read(UC_M68K_REG_A7)
+                    vptr, pcmp, ln, pp, outp = struct.unpack(">5I", rd(u, sp + 4, 20))
+                    state["tr"] = state.get("tr", 0) + 1
+                    print("gr_block: len", ln, "params", struct.unpack(">8i", rd(u, pp, 32)))
+            if "gr_block" in MAP:
+                uc.hook_add(UC_HOOK_CODE, at_block, begin=MAP["gr_block"], end=MAP["gr_block"])
             for name in ("lucys_synth_all", "lucys_granular_render", "lucys_granular_machine"):
                 if name in MAP:
                     uc.hook_add(UC_HOOK_CODE, (lambda nm: lambda u, a, s, d: state["calls"].__setitem__(nm, state["calls"].get(nm, 0) + 1))(name),
@@ -139,6 +173,14 @@ def spin(m, pc, *args, **kw):
         u = state["uc"]
         print("step", n, "core_track_machine:", list(rd(u, MAP["core_track_machine"], 8)),
               "hook counts:", state.get("calls"))
+    if os.environ.get("POKE") and n >= 1000:
+        for kv in os.environ["POKE"].split(","):
+            sl, val = kv.split(":")
+            word = struct.pack(">H", int(val) << 8)
+            state["uc"].mem_write(0x80001502 + 2 * int(sl), word)           # the voice's copy
+            kit = struct.unpack(">I", rd(state["uc"], 0x800019ac, 4))[0]
+            if kit:                                                         # the kit's sound block, so a trig's reload keeps it
+                state["uc"].mem_write(kit + 0x20 + 0x14 + 2 * int(sl), word)
     act = PLAN.get(n)
     if act:
         E.inbox.append((act[0], act[1], act[2] if len(act) > 2 else 0))
@@ -156,14 +198,20 @@ pcm = E.audio_take()
 print("hook hits:", state.get("hits", 0), "audio peak:", max((abs(x) for x in struct.unpack("<%dh" % (len(pcm) // 2), pcm)), default=0))
 print("error:", E.error, "steps:", state["n"], "block hits with signal:", len(state["rows"]))
 rows = state["rows"]
+print("min trailing zero bits in voice 0 block values: %s, max distinct values per block: %s" % (state.get("tz"), state.get("distinct")))
 print("block peaks of voice 0 / %d (s16 units), every 6th block:" % GAIN_UNIT)
 print([r[5] // GAIN_UNIT for r in rows[::6]][:80])
+if os.environ.get("DUMP"):
+    print("all v0 block peaks:", [(r[0], r[4], r[5] // GAIN_UNIT) for r in rows if r[1] == 0][:int(os.environ["DUMP"])])
 if rows:
     uc = state["uc"]
     ptr, length = rows[0][6], rows[0][7]
     pcm_src = struct.unpack(">%dh" % min(length, 48000), rd(uc, ptr, 2 * min(length, 48000)))
     print("source PCM peak %d; max block peak / %d = %d" % (max(abs(x) for x in pcm_src), GAIN_UNIT,
                                                            max(r[5] for r in rows) // GAIN_UNIT))
+if state.get("cnt") and state["cnt"]["calls"]:
+    c = state["cnt"]["calls"]
+    print("instructions per lucys_granular_render call: n=%d avg %d max %d" % (len(c), sum(c) // len(c), max(c)))
 if len(pcm) > 4:
     s16 = struct.unpack("<%dh" % (len(pcm) // 2), pcm)
     left = s16[0::2]
