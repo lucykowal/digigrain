@@ -42,7 +42,7 @@ startup menu, then send the stock `.syx`. Never commit firmware (`*.syx`,
 
 ## Future work
 
-- SRC page layout hook so the knobs read DENS / SHAPE / RAND with bipolar ranges
+- Custom value readouts (Hz, offset from noon) for DENS / SHAPE / RAND
 - Optimise the grain loop (about 65 instructions per grain-sample today)
 - Hardware testing; Poisson random intervals
 
@@ -63,9 +63,13 @@ startup menu, then send the stock `.syx`. Never commit firmware (`*.syx`,
 
 - TUNE sets the playback speed through the stock voice; grains read a fixed
   50 ms of source (at 1x), so speed changes pitch and grain length together.
-- BR is the (fixed) grain position; PLAY picks the grain direction (the `.L`
-  modes also keep the voice sustaining).
+- The position knob (C) is the stock STRT parameter, so it is labelled STRT
+  (0 to 120) rather than BR; PLAY picks the grain direction (the `.L` modes
+  also keep the voice sustaining).
 - DENS: periodic grains at 0.25 to 120 Hz counter-clockwise of noon, random
   intervals (same mean rates) clockwise. RAND randomizes pitch (up to +-12
   semitones), shape and position per grain.
-- Until the page layout is hooked, the page still shows SLICE's labels.
+- The SRC page reads `TUNE PLAY STRT SAMP / DENS SHAPE RAND LEV` (page layout
+  hook plus three new parameter descriptors); DENS, SHAPE and RAND show raw
+  0 to 127 values with noon at 64. A new GRANULAR track starts with FWD.L,
+  DENS 36 and a sine SHAPE.

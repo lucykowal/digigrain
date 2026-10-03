@@ -12,7 +12,8 @@
   "granular.c",
   "grain.c",
   "machine.s",
-  "synth.s"
+  "synth.s",
+  "page.s"
  ],
  "requires": [
   "core"
@@ -43,6 +44,91 @@
    "stock": "4eb9400757fe",
    "op": "keep2",
    "target": "lucys_synth_all"
+  },
+  {
+   "addr": "0x400657cc",
+   "stock": "7203202f0004",
+   "op": "jmp",
+   "target": "lucys_layout"
+  },
+  {
+   "addr": "0x401a9dd0",
+   "stock": "ffffffffffffffff0000000000000000000000000000000100010021ffffffff0000000100000000",
+   "op": "bytes",
+   "new": "00000006000000130000000000007f0000004000000000000012ffff000000820000007000000e00"
+  },
+  {
+   "addr": "0x401a9df8",
+   "stock": "401c21e8",
+   "op": "ptr",
+   "target": "lucys_str_dens_long"
+  },
+  {
+   "addr": "0x401a9dfc",
+   "stock": "401c5847",
+   "op": "bytes",
+   "new": "401c6afe"
+  },
+  {
+   "addr": "0x401a9e00",
+   "stock": "401c1d2f",
+   "op": "ptr",
+   "target": "lucys_str_dens"
+  },
+  {
+   "addr": "0x401a9e04",
+   "stock": "ffffffffffffffff0000000000000000000000000000000100020022ffffffff0000000200000000",
+   "op": "bytes",
+   "new": "00000006000000160000000000007f0000004000000000010015ffff000000850000007300000e00"
+  },
+  {
+   "addr": "0x401a9e2c",
+   "stock": "401c21e8",
+   "op": "ptr",
+   "target": "lucys_str_shape_long"
+  },
+  {
+   "addr": "0x401a9e30",
+   "stock": "401c5847",
+   "op": "bytes",
+   "new": "401c6afe"
+  },
+  {
+   "addr": "0x401a9e34",
+   "stock": "401c1d2f",
+   "op": "ptr",
+   "target": "lucys_str_shape"
+  },
+  {
+   "addr": "0x401a9e38",
+   "stock": "ffffffffffffffff0000000000000000000000000000000100060026ffffffff0000000300000000",
+   "op": "bytes",
+   "new": "00000006000000170000000000007f0000000000000000010016ffff000000860000007400000e00"
+  },
+  {
+   "addr": "0x401a9e60",
+   "stock": "401c21e8",
+   "op": "ptr",
+   "target": "lucys_str_rand_long"
+  },
+  {
+   "addr": "0x401a9e64",
+   "stock": "401c5847",
+   "op": "bytes",
+   "new": "401c6afe"
+  },
+  {
+   "addr": "0x401a9e68",
+   "stock": "401c1d2f",
+   "op": "ptr",
+   "target": "lucys_str_rand"
+  }
+ ],
+ "subscribe": [
+  {
+   "event": "ev_tick",
+   "fn": "lucys_granular_tick",
+   "order": 50
   }
  ]
 }

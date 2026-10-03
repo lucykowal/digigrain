@@ -74,6 +74,15 @@ if os.environ.get("GRANULAR"):                              # our build: switch 
         PLAN[t], PLAN[t + 20] = ("press", 15), ("release", 15)
     PLAN.update({2000: ("press", 12), 2020: ("release", 12),                                          # YES
                  2300: ("press", 24), 2320: ("release", 24)})                                         # trig key 1
+# TURNS="knob:delta:count,..." (knob 1..8 = A..H) turns encoders after the machine is selected;
+# every event is 6 steps after the last (the firmware wants small, spaced events)
+_t = 2100
+for kv in (t for t in os.environ.get("TURNS", "").split(",") if t):
+    kn, dl, *cnt = kv.split(":")
+    for _ in range(int(cnt[0]) if cnt else 1):
+        PLAN[_t] = ("encoder", int(kn), int(dl))
+        _t += 6
+    _t += 30
 STEPS = 4400
 state = {"n": 0, "rows": []}
 
@@ -181,6 +190,12 @@ def spin(m, pc, *args, **kw):
             kit = struct.unpack(">I", rd(state["uc"], 0x800019ac, 4))[0]
             if kit:                                                         # the kit's sound block, so a trig's reload keeps it
                 state["uc"].mem_write(kit + 0x20 + 0x14 + 2 * int(sl), word)
+    if os.environ.get("MEMDUMP") and n == int(os.environ.get("MEMDUMP_STEP", "600")):
+        for spec in os.environ["MEMDUMP"].split(","):
+            a_, l_ = (int(x, 16) for x in spec.split(":"))
+            data = rd(state["uc"], a_, l_)
+            for off in range(0, l_, 16):
+                print("MEM %08x: %s" % (a_ + off, " ".join("%02x" % b for b in data[off:off + 16])))
     act = PLAN.get(n)
     if act:
         E.inbox.append((act[0], act[1], act[2] if len(act) > 2 else 0))
