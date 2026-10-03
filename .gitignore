@@ -1,0 +1,5 @@
+.build/
+*.elemod
+out/
+.envrc
+.direnv/
