@@ -5,8 +5,7 @@ Windows (256 entries): sine (half-sine), gate (flat with short raised-cosine edg
 attack, then (1-x)^2). The grain shape control blends sine -> gate (CCW) or sine -> decay (CW).
 The window tables the engine reads are stored as unsigned Q16 (twice the Q15 value, so
 (sample * table) >> 16 equals (sample * Q15) >> 15 and the ColdFire can use a swap); the Q15
-tables below are the reference the blends are computed from. gr_win_q holds 17 pre-blended
-windows for the random per-grain shapes (shape = (j - 8) * 32)."""
+tables below are the reference the blends are computed from."""
 import math
 import os
 
@@ -14,20 +13,9 @@ N = 256
 EDGE = 6          # gate/decay attack length in entries (~2.3%)
 
 
-QSTEP, QN = 32, 17
-
-
 def blend(sine, alt, sh):
-    """The Q15 window for shape sh (> 0 toward alt) exactly as the engine's reference loop computes it."""
+    """The Q15 window for shape sh (> 0 toward alt) exactly as the engine computes it."""
     return [w + (((a - w) * sh) >> 8) for w, a in zip(sine, alt)]
-
-
-def quantized(sine, gate, decay):
-    out = []
-    for j in range(QN):
-        shape = (j - QN // 2) * QSTEP
-        out.append(sine if shape == 0 else blend(sine, gate if shape < 0 else decay, abs(shape)))
-    return out
 
 
 def tables():
@@ -57,11 +45,8 @@ def main():
            "#define GR_AVG_SINE %d   /* mean window level, Q8 */" % avg[0],
            "#define GR_AVG_GATE %d" % avg[1],
            "#define GR_AVG_DECAY %d" % avg[2]]
-    q = quantized(sine, gate, decay)
     out += arr("gr_win_sine", sine) + arr("gr_win_gate", gate) + arr("gr_win_decay", decay)
-    out += ["#define GR_QN %d" % QN, "#define GR_QSTEP %d" % QSTEP]
     out += arr("gr_win_sine16", [2 * w for w in sine], "unsigned short")
-    out += arr("gr_win_q", [2 * w for t in q for w in t], "unsigned short")      # 17 x 256, Q16
     out += arr("gr_ratio", ratio, "unsigned")
     with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mod", "tables.h"), "w") as f:
         f.write("\n".join(out) + "\n")
