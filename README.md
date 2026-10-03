@@ -3,9 +3,9 @@
 Custom firmware mods for the Elektron Digitakt (mk1, OS 1.53), built with
 [elekloader](../elekloader).
 
-A granular playback SRC machine (id 6, GRANULAR). The engine runs in the
-emulator on the real firmware; the SRC page labels and ranges, polyphonic cost
-and hardware testing are still open (see `.claude/skills/digitakt-machines`).
+A granular playback SRC machine (id 6, GRANULAR). Verified in the emulator on
+the real firmware; open work and test status are in the GitHub issue tracker.
+Design notes for contributors and agents are in `.claude/skills/`.
 
 ## Prerequisites
 
@@ -28,10 +28,10 @@ make check   # all of the above
 
 ## Layout
 
-- `mod/` — the elekloader mod: `grain.c` (engine), `granular.c` (firmware glue), `synth.s` (render hook), `machine.s` (machine descriptor)
+- `mod/` — the elekloader mod: `grain.c` (engine), `granular.c` (firmware glue), `synth.s` (render hooks), `page.s` (SRC page layout + label hooks), `machine.s` (machine descriptor)
 - `scripts/` — build/lint/patch/check wrappers
 - `tests/` — host tests (`test_grain.py` vs a Python model, `test_build.py`); `tests/emu/` digiemu probes (see the digitakt-testing skill)
-- `tools/` — table generators (`gen_window.py` -> `mod/window.h`)
+- `tools/` — generators: `gen_tables.py` -> `mod/tables.h` (windows, pitch ratios), `gen_page_sites.py` -> descriptor and label-hook sites in `mod/mod.json`
 - `.claude/skills/` — agent notes for mod development
 
 ## Flashing and recovery
@@ -40,36 +40,31 @@ Back up first. If a build misbehaves: hold FUNC while powering on for the
 startup menu, then send the stock `.syx`. Never commit firmware (`*.syx`,
 `*.bin`, `*.elemod` are ignored).
 
-## Future work
-
-- Custom value readouts (Hz, offset from noon) for DENS / SHAPE / RAND
-- Cycle-accurate check of the render margin with eight dense voices; further loop tuning (the interpolating loop is ~26 instructions per grain-sample, the unity-speed loop 13)
-- Hardware testing; Poisson random intervals
-
 ## Granular Parameters
 
-- TUNE: Pitch of each grain
-- PLAY: Granular playhead's playback direction
-- BR: Bit reduction
-- SAMP: Sample selection
-- DENS: Grain spawn rate. 0 Hz at noon, counter-clockwise for periodic rates,
-  clockwise for random.
-- SHAPE: Grain shape. Sinusoidal window at noon, counter-clockwise for gate,
-  clockwise for a quick decay.
-- RAND: Level of tune, shape, and position randomization between grains
-- LEV: Source level
+- A. TUNE: Pitch of each grain. Independent of grain length.
+- B. RATE: Grain spawn rate. Nothing at noon, counter-clockwise for periodic
+  rates, clockwise for random.
+- C. SPRD: Random grain variation. None at noon, counter-clockwise randomizes
+  POS, clockwise randomizes TUNE.
+- D. SAMP: Sample selection.
+- E. POS: Grain playhead, the position where grains start when spawned.
+- F. RTIO: Grain length as a ratio of the spawn period, 0.25 to 8.00 (1:4 to
+  8:1). At the maximum RTIO with a periodic RATE, 8 grains play at once.
+- G. ENV: Grain envelope. Sine at noon, counter-clockwise for gate, clockwise
+  for a quick decay.
+- H. LEV: Source level.
 
 ### Implementation notes
 
-- TUNE sets the playback speed through the stock voice; grains read a fixed
-  50 ms of source (at 1x), so speed changes pitch and grain length together.
-- The position knob (C) is the stock STRT parameter, so it is labelled STRT
-  (0 to 120) rather than BR; PLAY picks the grain direction (the `.L` modes
-  also keep the voice sustaining).
-- DENS: periodic grains at 0.25 to 120 Hz counter-clockwise of noon, random
-  intervals (same mean rates) clockwise. RAND randomizes pitch (up to +-12
-  semitones), shape and position per grain.
-- The SRC page reads `TUNE PLAY STRT SAMP / DENS SHAPE RAND LEV` (page layout
-  hook plus three new parameter descriptors); DENS, SHAPE and RAND show raw
-  0 to 127 values with noon at 64. A new GRANULAR track starts with FWD.L,
-  DENS 36 and a sine SHAPE.
+- Grains play forward only. There is no PLAY parameter: the stock voice the
+  machine borrows is forced to loop, so a held note sustains.
+- Grain length is RTIO times the spawn period, independent of pitch, so a
+  voice never has more than 8 grains (the per-voice pool size). Length is
+  capped at 65535 frames (1.37 s).
+- A new GRANULAR track starts with RATE 36 (periodic, about 24 Hz), SPRD 64
+  (none), POS 0, RTIO 1.00 and ENV 64 (sine).
+- The RATE and POS labels come from hooks on the page's label lookups (the
+  firmware has too few spare parameter descriptors for unique names).
+- Open work (custom readouts, further optimisation, hardware tests) is in the
+  issue tracker.
