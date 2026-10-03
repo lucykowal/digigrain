@@ -5,12 +5,41 @@
  "category": "Machines",
  "author": "lucykowal",
  "license": "GPL-2.0-or-later",
- "description": "Adds a granular playback SRC machine. Scaffold only: draws a marker.",
+ "description": "Adds a GRANULAR SRC machine (id 6). Scaffold: it takes ONESHOT's parameters and plays as ONESHOT; also draws a marker.",
  "device": "digitakt-mk1",
  "os": "1.53",
- "sources": ["granular.c"],
- "subscribe": [
-  {"event": "ev_draw", "fn": "lucys_granular_draw", "order": 60}
+ "sources": [
+  "granular.c",
+  "machine.s"
  ],
- "requires": ["core"]
+ "subscribe": [
+  {
+   "event": "ev_draw",
+   "fn": "lucys_granular_draw",
+   "order": 60
+  }
+ ],
+ "requires": [
+  "core"
+ ],
+ "contribute": [
+  {
+   "to": "core_machines",
+   "order": 50,
+   "data": "00000000",
+   "relocs": [
+    [
+     0,
+     "abs32",
+     "sym:lucys_granular_machine",
+     0
+    ]
+   ]
+  }
+ ],
+ "resources": {
+  "names": [
+   "machine:6"
+  ]
+ }
 }

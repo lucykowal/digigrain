@@ -21,6 +21,14 @@ class ModJson(unittest.TestCase):
         for s in self.mod["sources"]:
             self.assertTrue(os.path.isfile(os.path.join(MOD, s)), s)
 
+    def test_machine_registered(self):
+        contrib = [c for c in self.mod.get("contribute", []) if c["to"] == "core_machines"]
+        self.assertEqual(len(contrib), 1)
+        self.assertIn("machine:6", self.mod["resources"]["names"])
+        sym = contrib[0]["relocs"][0][2].split(":", 1)[1]
+        with open(os.path.join(MOD, "machine.s")) as f:
+            self.assertIn(sym + ":", f.read())
+
     def test_handlers_defined(self):
         src = ""
         for s in self.mod["sources"]:
