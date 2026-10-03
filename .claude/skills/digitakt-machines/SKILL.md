@@ -41,9 +41,13 @@ Both references make the new machine behave as a stock machine for the engine an
 - Reusing the aliased machine's ids is the easy path (digipoly/digislicer). New names/ranges mean cloning descriptor blocks and formatters (PLAY fmt 0x4005f91c, GRID fmt 0x4005fa2e, range fn 0x40078f0c; see digislicer `dsl_prange`, `play_fmt`, `grid_fmt`) — or draw your own page via `ev_draw`/`ev_key`/`ev_enc` (see `digitakt-hook-bus`).
 - Knob values reach the engine via 0x400771e8; smoothed words at `0x80002772+106*v`. Read your 8 params there in the render hook. Spare RAM-only slots 46..52 exist; extra persistent state needs `kitstore.h`-style spare bytes.
 
-## Open questions for granular (verify before building)
-1. Where the render does the per-sample sample read/resample, and how voice output accumulates into master (0x8000ea70). Need disassembly of ~0x40071c20-0x40077d50 and the three PLAY sites.
-2. How a mod fills the `render == own id` empty voice window (read digislicer `glue.s`/`slice.c` and core `machines.s`).
-3. Pitch mapping of note -> sample pitch for a new machine; voice stealing with p-locked sample slots.
-4. s16 PCM format and `rate`/`ratio` semantics in `OS_SMP_TAB` (inferred from digislicer, not documented).
-5. Whether to render grains inside `ev_render_in/out` (own mix into master) or by replacing the sample read: first is simpler and decoupled, costs ISR budget.
+## Granular design (current plan, from the traced render path)
+- Machine id 6 via core 2.1: `params` = a stock machine for the 8 SRC knobs, `render` = 0 (plays as ONESHOT) so the stock voice runs as a "shadow" (note on/off, sample slot, V+4 playhead/pitch, amp env/filter/pan/FX downstream).
+- Hook: `keep2` site at **0x40077fa6** (stock `4eb9400757fe`, the call to voices 1-7's synth) -> `lucys_granular_synth(...)` calls stock `0x400757fe` with the same stack args, then for each voice v with `core_track_machine[v]==6` and the voice on, overwrites the block at `0x80001a18+128*v` with grain output (int32 Q31 mono; scale to calibrate). Voice 0's synth is called at 0x40077f8e (`0x40075184`): second site (stock `4eb940075184`). Both are implemented as pass-through wrappers in `mod/synth.s` (repeat the 5 stack args, call stock, then `lucys_granular_render(first)`); the loader accepts them (stock bytes match, no overlap with core 2.1's 39 sites).
+- Inputs per block: smoothed param words at `0x80002772+106*v` (+2s, slots 0x11-0x18 = the 8 knobs); sample from `V+0x5C` slot -> `0x403193a0[slot]` (ptr, length at +8); trig = bit v of `0x80001228`; playhead/pitch = V+4 and its per-block delta.
+- Open: Q31 scale of voice blocks (calibrate in Unicorn or with a known sample on hardware); behaviour when the shadow voice ends at sample end; fast-audio interaction with the 0x40077fa6 site; SRC page names/ranges (knob UI) beyond reusing the params machine's; confirm `0x40072478`/`0x4007269c` roles.
+
+## Other open questions
+1. Pitch mapping of note -> sample pitch (avoided by reading V+4 deltas).
+2. Voice stealing with p-locked sample slots.
+3. Meaning of the sample table's +4 u16.

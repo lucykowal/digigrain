@@ -10,7 +10,8 @@
  "os": "1.53",
  "sources": [
   "granular.c",
-  "machine.s"
+  "machine.s",
+  "synth.s"
  ],
  "subscribe": [
   {
@@ -41,5 +42,19 @@
   "names": [
    "machine:6"
   ]
- }
+ },
+ "sites": [
+  {
+   "addr": "0x40077f8e",
+   "stock": "4eb940075184",
+   "op": "keep2",
+   "target": "lucys_synth_v0"
+  },
+  {
+   "addr": "0x40077fa6",
+   "stock": "4eb9400757fe",
+   "op": "keep2",
+   "target": "lucys_synth_v17"
+  }
+ ]
 }

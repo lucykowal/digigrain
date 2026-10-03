@@ -12,3 +12,10 @@ void lucys_granular_draw(void *bmp, void *ctrl)
     (void)ctrl;
     FILLRECT(bmp, 0, 61, 2, 63, 1);
 }
+
+/* Called after the stock voice synth: first = 0 for voice 0, 1 for voices 1-7.
+ * Will overwrite granular voices' 32 x int32 blocks at 0x80001a18 + 128 * v. */
+void lucys_granular_render(int first)
+{
+    (void)first;
+}
