@@ -5,9 +5,13 @@ description: Testing Digitakt mods without hardware: raw Unicorn hook tests, dig
 
 # Testing Digitakt mods
 
-## Availability (checked)
-- **digiemu is NOT in any local repo** (it is the separate "digikit" emulator; needs its own patched Unicorn venv). `elektron-firmware-tool` is only a container/SysEx/aPLib tool; it has no emulator. Ask the user where digiemu lives before relying on it; don't search the filesystem for it.
-- Raw Unicorn tests need `pip install unicorn pillow` (`requirements-dev.txt`) plus m68k binutils; EMAC-using code needs digiemu's patched Unicorn.
+## Availability
+- **digiemu** = `../digiemumac` (github.com/orwell68/digiemumac, a fork of irpina/digiemu). Runs the real 1.53 OS in a patched Unicorn on macOS. Set up (done): `uv sync --python-preference only-managed --python 3.12` (managed Python has Tk; Homebrew's python lacks `_tkinter`), then `tools/install-patched-unicorn.sh` (rerun after every `uv sync`/venv rebuild), then `uv run python -m emu.portable --add ../Digitakt_OS1.53.syx --yes` (~25 s; data in `portable/firmware/dt1-1.53-9bdd44bb/`, derived from firmware: never commit). GUI: `uv run python -m emu.portable` (needs a display).
+- **Build check** for our patched firmware: `uv run python -m emu.fwcheck ../lucys-mod/out/test.syx --baseline ../Digitakt_OS1.53.syx --out <dir>` (~8-12 min; `--no-timing` ~3x faster, skips the render-margin measurement). Reports prepare/bootloader/boot/run, audio render margin, screen diffs and audio identity vs stock. The stock build itself "fails" boot on a FlexBus read at 0x0 in this copy (emulator quirk, ignore).
+- Headless tools in digiemumac: `tools/dtdrive.py` (press keys, capture), `tools/livecheck.py` (live audio via stub card), `tools/ekfsadd.py` (WAVs onto the +Drive), `emu.checkpoint`; see `DIGITAKT-MK1.md`.
+- Ghidra: use language `68000:BE:32:ColdfireEMAC` (decodes EMAC/`movclr`; the stock ColdFire language stops there and the decompiler fails).
+- `elektron-firmware-tool` is only a container/SysEx/aPLib tool; no emulator.
+- Raw Unicorn tests need `pip install unicorn pillow` (`requirements-dev.txt`); EMAC code needs the patched Unicorn.
 
 ## Layer 1: raw Unicorn hook tests (seconds)
 Reference: `../digi1_mods/tests/emu_poly.py`, `emu_eq.py`, `emu_matrix.py`. Skeleton:
