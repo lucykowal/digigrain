@@ -9,7 +9,9 @@ synth calls in the render ISR (0x40077fac), reads the per-voice mono blocks at
 the matching source PCM peak from the sample table, so the Q31-vs-s16 scale of
 a block can be read off.
 
-    uv run --project ../digiemumac python tests/emu/scale_probe.py
+    uv run --project ../digiemumac python tests/emu/scale_probe.py          # stock firmware
+    GRANULAR=1 FW_DIR=out/emu/home/firmware/<our build> uv run ... scale_probe.py   # our build:
+        switches track 1 to GRANULAR first and reports the grain output levels and audio
 
 Env: DIGIEMU (default ../digiemumac), FW_DIR (firmware folder), SHOTS (dir for debug PNGs).
 """
@@ -21,6 +23,7 @@ import types
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DIGIEMU = os.path.abspath(os.environ.get("DIGIEMU", os.path.join(ROOT, "..", "digiemumac")))
 FW = os.environ.get("FW_DIR") or os.path.join(DIGIEMU, "portable", "firmware", "dt1-1.53-9bdd44bb")
+GAIN_UNIT = 25916                # stock block = s16 x GAIN_UNIT (measured)
 AFTER_SYNTH = 0x40077fac          # after both voice-synth calls, before filter/mix
 BLOCKS = 0x80001a18               # 8 voice blocks, 128 bytes each
 SMP_TAB = 0x403193a0              # 16 bytes a slot: PCM ptr, u16, length, ratio
@@ -31,7 +34,7 @@ syx = [f for f in os.listdir(FW) if f.endswith(".syx")][0]
 os.environ.update({
     "DT2_SYX": os.path.join(FW, syx), "DT2_SECTIONS": FW + "/sections", "DT2_SNAPSHOTS": FW + "/snapshots",
     "DT2_PLUSDRIVE": FW + "/plusdrive.img", "DT2_MAIN_IMG": FW + "/sections/section_3_MAIN_OS.bin",
-    "DT2_DEVICES": os.path.join(DIGIEMU, "devices")})
+    "DT2_DEVICES": FW + "/devices" if os.path.isdir(FW + "/devices") else os.path.join(DIGIEMU, "devices")})   # custom builds carry their own device file
 os.chdir(FW)
 tk = types.ModuleType("tkinter")
 tk.Frame = type("Frame", (), {})
@@ -40,6 +43,17 @@ sys.modules["tkinter"] = tk
 for n in ("ttk", "messagebox", "filedialog", "font"):
     sys.modules["tkinter." + n] = types.ModuleType("tkinter." + n)
 from unicorn import UC_HOOK_CODE  # noqa: E402
+
+MAP = {}
+if os.environ.get("GRANULAR"):        # symbol addresses of our build, from elekloader's linker
+    sys.path.insert(0, os.path.join(ROOT, "..", "elekloader"))
+    from elekloader import syx as _syx, devices as _dev, elemod as _em, link as _link
+    import glob
+    _st = _syx.Syx.load(os.path.join(ROOT, "..", "Digitakt_OS1.53.syx"))
+    _d, _r = _dev.identify(_st.sha256)
+    _mods = [glob.glob(os.path.join(ROOT, "out", "core", "core-*.elemod"))[0],
+             glob.glob(os.path.join(ROOT, "out", "mod", "lucys-granular-*.elemod"))[0]]
+    MAP = _link.link([_em.load_any(m) for m in _mods], _st.section(_d.main_section)).map
 import emu.gui as G  # noqa: E402
 
 SNAP = [os.path.join(d, f) for d, _, fs in os.walk(FW + "/snapshots") for f in fs if f == "gui.snap"][0]
@@ -52,7 +66,14 @@ PLAN = {600: ("press", 20), 620: ("release", 20), 700: ("encoder", 4, 1),
         1150: ("press", 15), 1170: ("release", 15),        # DOWN: sine440
         1250: ("press", 12), 1270: ("release", 12),        # YES: load it
         1700: ("press", 24), 1720: ("release", 24)}        # trig key 1
-STEPS = 3200
+if os.environ.get("GRANULAR"):                              # our build: switch track 1 to GRANULAR first
+    PLAN.pop(1700), PLAN.pop(1720)
+    PLAN.update({1450: ("press", 1), 1460: ("press", 20), 1480: ("release", 20), 1490: ("release", 1)})  # FUNC+SRC
+    for i, t in enumerate((1600, 1680, 1760, 1840)):                                                  # DOWN x4
+        PLAN[t], PLAN[t + 20] = ("press", 15), ("release", 15)
+    PLAN.update({2000: ("press", 12), 2020: ("release", 12),                                          # YES
+                 2300: ("press", 24), 2320: ("release", 24)})                                         # trig key 1
+STEPS = 4400
 state = {"n": 0, "rows": []}
 
 
@@ -78,7 +99,7 @@ def rd(uc, addr, n):
 
 def probe(uc, addr, size, data):
     state["hits"] = state.get("hits", 0) + 1
-    if state["n"] < 1700:
+    if state["n"] < (2300 if os.environ.get("GRANULAR") else 1700):
         return
     for v in range(8):
         blk = struct.unpack(">32i", rd(uc, BLOCKS + 128 * v, 128))
@@ -100,9 +121,24 @@ def spin(m, pc, *args, **kw):
     n = state["n"]
     if n == 0:
         uc.hook_add(UC_HOOK_CODE, probe, begin=AFTER_SYNTH, end=AFTER_SYNTH)
+        if MAP:
+            state["calls"] = {}
+            for name in ("lucys_synth_all", "lucys_granular_render", "lucys_granular_machine"):
+                if name in MAP:
+                    uc.hook_add(UC_HOOK_CODE, (lambda nm: lambda u, a, s, d: state["calls"].__setitem__(nm, state["calls"].get(nm, 0) + 1))(name),
+                                begin=MAP[name], end=MAP[name])
         state["uc"] = uc
-    if os.environ.get("SHOTS") and n in (1300, 1600):
+    if n == 1750:
+        u = state["uc"]
+        for base, name in ((0x80002772, "smoothed 0x80002772+106v"), (0x80001502, "engine copy 0x80001502+106v")):
+            w = struct.unpack(">53H", rd(u, base, 106))
+            print(name, "v0 slots 1-8 LFO1:", w[1:9], "| 0x11-0x18 SRC:", w[17:25], "| 0x19-0x20:", w[25:33], "| 0x26-0x2d AMP:", w[38:46])
+    if os.environ.get("SHOTS") and n in tuple(int(x) for x in os.environ.get('SHOT_STEPS', '').split(',') if x):
         shot("step%d" % n)
+    if MAP and n in (2250, 2310, 2400):
+        u = state["uc"]
+        print("step", n, "core_track_machine:", list(rd(u, MAP["core_track_machine"], 8)),
+              "hook counts:", state.get("calls"))
     act = PLAN.get(n)
     if act:
         E.inbox.append((act[0], act[1], act[2] if len(act) > 2 else 0))
@@ -120,12 +156,19 @@ pcm = E.audio_take()
 print("hook hits:", state.get("hits", 0), "audio peak:", max((abs(x) for x in struct.unpack("<%dh" % (len(pcm) // 2), pcm)), default=0))
 print("error:", E.error, "steps:", state["n"], "block hits with signal:", len(state["rows"]))
 rows = state["rows"]
-for r in rows[:6] + rows[len(rows) // 2:len(rows) // 2 + 3] + rows[-3:]:
-    print("step %d v%d on=%d slot=%d V+4=%d block_peak=%d (0x%x) ptr=0x%x len=%d ratio=0x%x" % (r[:5] + (r[5], r[5]) + r[6:]))
+print("block peaks of voice 0 / %d (s16 units), every 6th block:" % GAIN_UNIT)
+print([r[5] // GAIN_UNIT for r in rows[::6]][:80])
 if rows:
     uc = state["uc"]
     ptr, length = rows[0][6], rows[0][7]
-    pcm = struct.unpack(">%dh" % min(length, 48000), rd(uc, ptr, 2 * min(length, 48000)))
-    print("source PCM first %d samples: peak %d" % (len(pcm), max(abs(x) for x in pcm)))
-    print("max block peak over run: %d  => block/s16 ratio ~ %.1f (65536 = s16<<16)" % (
-        max(r[5] for r in rows), max(r[5] for r in rows) / max(1, max(abs(x) for x in pcm))))
+    pcm_src = struct.unpack(">%dh" % min(length, 48000), rd(uc, ptr, 2 * min(length, 48000)))
+    print("source PCM peak %d; max block peak / %d = %d" % (max(abs(x) for x in pcm_src), GAIN_UNIT,
+                                                           max(r[5] for r in rows) // GAIN_UNIT))
+if len(pcm) > 4:
+    s16 = struct.unpack("<%dh" % (len(pcm) // 2), pcm)
+    left = s16[0::2]
+    start = next((i for i, x in enumerate(left) if abs(x) > 200), 0)
+    seg = left[start:start + 24000]
+    zc = sum(1 for a, b in zip(seg, seg[1:]) if a < 0 <= b)
+    print("audio: %d frames, peak %d, first sound at %.3f s; rising zero crossings in the next 0.5 s: %d (440 Hz -> ~220)" % (
+        len(left), max(abs(x) for x in left), start / 48000, zc))

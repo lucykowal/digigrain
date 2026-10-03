@@ -5,20 +5,14 @@
  "category": "Machines",
  "author": "lucykowal",
  "license": "GPL-2.0-or-later",
- "description": "Adds a GRANULAR SRC machine (id 6). Scaffold: it takes ONESHOT's parameters and plays as ONESHOT; also draws a marker.",
+ "description": "Adds a GRANULAR SRC machine (id 6): a granular playback engine. STRT = position, LEN = grain size, BR = density, TUNE = pitch, LEV = level.",
  "device": "digitakt-mk1",
  "os": "1.53",
  "sources": [
   "granular.c",
+  "grain.c",
   "machine.s",
   "synth.s"
- ],
- "subscribe": [
-  {
-   "event": "ev_draw",
-   "fn": "lucys_granular_draw",
-   "order": 60
-  }
  ],
  "requires": [
   "core"
@@ -45,16 +39,10 @@
  },
  "sites": [
   {
-   "addr": "0x40077f8e",
-   "stock": "4eb940075184",
-   "op": "keep2",
-   "target": "lucys_synth_v0"
-  },
-  {
    "addr": "0x40077fa6",
    "stock": "4eb9400757fe",
    "op": "keep2",
-   "target": "lucys_synth_v17"
+   "target": "lucys_synth_all"
   }
  ]
 }

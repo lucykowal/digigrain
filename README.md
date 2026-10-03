@@ -27,9 +27,10 @@ make check   # all of the above
 
 ## Layout
 
-- `mod/` — the elekloader mod (`mod.json`, sources)
+- `mod/` — the elekloader mod: `grain.c` (engine), `granular.c` (firmware glue), `synth.s` (render hook), `machine.s` (machine descriptor)
 - `scripts/` — build/lint/patch/check wrappers
-- `tests/` — smoke tests; `tests/emu/` reserved for Unicorn hook tests
+- `tests/` — host tests (`test_grain.py` vs a Python model, `test_build.py`); `tests/emu/` digiemu probes (see the digitakt-testing skill)
+- `tools/` — table generators (`gen_window.py` -> `mod/window.h`)
 - `.claude/skills/` — agent notes for mod development
 
 ## Flashing and recovery
