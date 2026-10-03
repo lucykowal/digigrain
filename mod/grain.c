@@ -20,6 +20,7 @@ void gr_reset(gvoice_t *v, unsigned seed)
     for (i = 0; i < GR_MAX; i++)
         v->g[i].active = 0;
     v->next_in = 0;
+    v->last = 0;
     v->rng = seed ? seed : 0x9e3779b9u;
     v->win_shape = 1000;            /* no table built yet (shapes are -256..256) */
 }
@@ -89,10 +90,10 @@ static void start(gvoice_t *v, const gparams_t *p, int len, int delay)
     out_len = (unsigned)gr_length(p);
     g->idx = pos;
     g->frac = 0;
-    g->inc = eff;
+    g->inc = 2 * eff;               /* per 24 kHz frame */
     g->wph = 0;
-    g->winc = WPH_ONE / out_len;
-    g->delay = delay;
+    g->winc = 2 * (WPH_ONE / out_len);      /* per 24 kHz frame */
+    g->delay = delay >> 1;
     g->active = 1;
 }
 
@@ -112,10 +113,10 @@ static void build_win(gvoice_t *v, int shape)
 
 /* Exact reference loop: checks the grain's bounds before every frame. Used near the end of the
  * sample and of the window; the fast loops below must produce bit-identical results. */
-static void run_slow(grain_t *g, const short *pcm, int len, int acc[GR_FRAMES], const unsigned short *win)
+static void run_slow(grain_t *g, const short *pcm, int len, int acc[GR_HALF], const unsigned short *win)
 {
     int f;
-    for (f = g->delay; f < GR_FRAMES; f++) {
+    for (f = g->delay; f < GR_HALF; f++) {
         int a, b, s;
         unsigned t;
         if (g->idx < 0 || g->idx >= len - 1 || g->wph >= WPH_ONE) {
@@ -172,9 +173,9 @@ static NOINLINE void fwd_int(grain_t *g, const short *pcm, int *acc, int n, cons
     g->wph = wp;
 }
 
-static void run_grain(grain_t *g, const short *pcm, int len, int acc[GR_FRAMES], const unsigned short *win)
+static void run_grain(grain_t *g, const short *pcm, int len, int acc[GR_HALF], const unsigned short *win)
 {
-    int f0 = g->delay, n = GR_FRAMES - f0, deact = 0;
+    int f0 = g->delay, n = GR_HALF - f0, deact = 0;
     unsigned room, nw;
     if (g->wph >= WPH_ONE) {
         g->active = 0;
@@ -205,9 +206,9 @@ static void run_grain(grain_t *g, const short *pcm, int len, int acc[GR_FRAMES],
 
 void gr_block(gvoice_t *v, const short *pcm, int len, const gparams_t *p, int out[GR_FRAMES])
 {
-    int acc[GR_FRAMES];
+    int acc[GR_HALF];
     int i, f, ran = 0;
-    for (f = 0; f < GR_FRAMES; f++)
+    for (f = 0; f < GR_HALF; f++)
         acc[f] = 0;
     if (len >= 4) {
         const unsigned short *win = gr_win_sine16;
@@ -236,11 +237,21 @@ void gr_block(gvoice_t *v, const short *pcm, int len, const gparams_t *p, int ou
                 ran = 1;
             }
     }
-    if (!ran) {
+    if (!ran && !v->last) {
         for (f = 0; f < GR_FRAMES; f++)
             out[f] = 0;
         return;
     }
-    for (f = 0; f < GR_FRAMES; f++)
-        out[f] = acc[f] > 32767 ? 32767 : acc[f] < -32768 ? -32768 : acc[f];
+    /* clamp, then linear upsample: the odd output is the 24 kHz sample, the even one the midpoint
+     * between it and the one before (so the output lags by half a 24 kHz frame) */
+    {
+        int prev = v->last;
+        for (f = 0; f < GR_HALF; f++) {
+            int s = acc[f] > 32767 ? 32767 : acc[f] < -32768 ? -32768 : acc[f];
+            out[2 * f] = (prev + s) >> 1;
+            out[2 * f + 1] = s;
+            prev = s;
+        }
+        v->last = prev;
+    }
 }
