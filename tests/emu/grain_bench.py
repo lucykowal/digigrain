@@ -21,7 +21,7 @@ OUT = os.path.join(ROOT, "out", "bench")
 CODE, DATA, STACK, STOP = 0x100000, 0x200000, 0x300000, 0x1000
 GR_MAX = 8
 GRAIN_BYTES = 7 * 4                 # grain_t: idx frac inc wph winc delay active
-VOICE_BYTES = GR_MAX * GRAIN_BYTES + 4 + 4 + 4 + 512   # grains, next_in, rng, win_shape, win[256]
+VOICE_BYTES = GR_MAX * GRAIN_BYTES + 4 + 4 + 4 + 512 + 4   # grains, next_in, rng, win_shape, win[256], last
 
 
 def build():

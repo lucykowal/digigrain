@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GR_MAX, FRAMES = 8, 32
+GR_MAX, FRAMES, HALF = 8, 32, 16
 M32 = 0xffffffff
 WPH_ONE = 1 << 24
 
@@ -29,7 +29,7 @@ class Grain(ctypes.Structure):
 
 class Voice(ctypes.Structure):
     _fields_ = [("g", Grain * GR_MAX), ("next_in", ctypes.c_int), ("rng", ctypes.c_uint),
-                ("win_shape", ctypes.c_int), ("win", ctypes.c_ushort * 256)]
+                ("win_shape", ctypes.c_int), ("win", ctypes.c_ushort * 256), ("last", ctypes.c_int)]
 
 
 class Params(ctypes.Structure):
@@ -69,7 +69,7 @@ class Model:
     """Python mirror of gr_reset / gr_block."""
 
     def __init__(self, seed):
-        self.g, self.next_in, self.rng = [], 0, seed or 0x9e3779b9
+        self.g, self.next_in, self.rng, self.last = [], 0, seed or 0x9e3779b9, 0
 
     def rnd(self):
         x = self.rng
@@ -92,11 +92,13 @@ class Model:
         if m > 0:
             pr = RATIO[self.rnd() % (2 * m + 1) - m + 12]
         eff = max(256, ((p["rate"] >> 6) * (pr >> 6)) >> 4)
-        self.g.append(dict(idx=pos, frac=0, inc=eff, wph=0, winc=WPH_ONE // length(p), delay=delay))
+        self.g.append(dict(idx=pos, frac=0, inc=2 * eff, wph=0, winc=2 * (WPH_ONE // length(p)),
+                           delay=delay >> 1))
 
     def block(self, pcm, p):
         n = len(pcm)
-        acc = [0] * FRAMES
+        acc = [0] * HALF
+        ran = False
         if n >= 4:
             iv = clampi(p["interval"], 1, 1 << 24)
             if p["mode"] == 0:
@@ -108,8 +110,9 @@ class Model:
                     self.next_in += iv if p["mode"] == 1 else self.rnd() % (2 * iv) + 1
                 self.next_in -= FRAMES
             win = window(clampi(p["shape"], -256, 256))
+            ran = bool(self.g)
             for g in list(self.g):
-                for f in range(g["delay"], FRAMES):
+                for f in range(g["delay"], HALF):
                     if g["idx"] < 0 or g["idx"] >= n - 1 or g["wph"] >= WPH_ONE:
                         self.g.remove(g)
                         break
@@ -121,7 +124,15 @@ class Model:
                     g["idx"] += t >> 16
                     g["frac"] = t & 0xffff
                 g["delay"] = 0
-        return [clampi(x, -32768, 32767) for x in acc]
+        if not ran and not self.last:
+            return [0] * FRAMES
+        out, prev = [], self.last
+        for x in acc:
+            x = clampi(x, -32768, 32767)
+            out += [(prev + x) >> 1, x]
+            prev = x
+        self.last = prev
+        return out
 
 
 @unittest.skipUnless(shutil.which("cc"), "no host C compiler")
@@ -310,7 +321,7 @@ class GrainTest(unittest.TestCase):
             v = self.new_voice(seed)
             self.block(v, arr, len(pcm), self.params(pos=pos, interval=100000))
             starts.add(v.g[0].idx - 32)                           # unity speed: advanced 32 frames
-            incs.add(v.g[0].inc)
+            incs.add(v.g[0].inc // 2)
         self.assertEqual(starts, {pos})
         self.assertEqual(incs, {65536})
         starts, incs = set(), set()
@@ -323,7 +334,7 @@ class GrainTest(unittest.TestCase):
         for seed in range(1, 80):
             v = self.new_voice(seed)
             self.block(v, arr, len(pcm), self.params(pos=pos, interval=100000, spread_tune=64))
-            incs.add(v.g[0].inc)
+            incs.add(v.g[0].inc // 2)
         self.assertGreater(len(incs), 8)
         self.assertTrue(all(32768 <= i <= 131072 for i in incs))          # +-12 semitones
 
