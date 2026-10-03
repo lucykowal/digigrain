@@ -20,15 +20,12 @@ Generate tables at build time with Python (`../digi1_mods/tools/gen_eq_tables.py
 ## Granular design (DaisySP findings)
 DaisySP (`../DaisySP`, MIT) has only `GranularPlayer`: a 2-grain, 50%-overlap time-stretch player, float, libm, nearest-neighbour reads, with an OOB index-wrap bug and double phasor advance. **Do not port; write fresh.** Reuse only the ideas (half-sine window, sawtooth phasor grain restart). MIT notices must be kept if any code is copied; algorithm ideas need none; our mod is GPL-2.0-or-later.
 
-Proposed engine:
-- Source: s16 PCM from `OS_SMP_TAB[slot]` (`digitakt-firmware-map`).
-- Q32 phase accumulators (wrap free); read position Q16.16; linear interpolation (2 reads + 1 MAC).
-- Window: Q15 half-sine/Hann table (256-512 entries) generated at build time, optional linear interp.
-- Pitch: semitone x fine-cents ratio tables, resolved once per block; reciprocal tables instead of division.
-- Grain pool: per grain `{pos Q16.16, inc, age, len, gain, pan}` ~16-24 B; 16-32 grains ~0.5-1 KB.
-- Scheduler: density counter/phasor per block, jitter from xorshift32/LCG (no libc); start position, size, pitch, pan per grain; free-grain search; mix into the 32-frame stereo block.
-- Estimated 8-16 grains x 32 frames ~512 grain-samples/block; feasibility is **unmeasured**: profile in the emulator (instruction counts via `UC_HOOK_CODE`) before committing to a grain count.
-- Map the 8 SRC knobs: position, size, density, pitch, jitter, spread, shape, level (design TBD).
+Implemented engine (`mod/grain.c`, API in `mod/grain.h`):
+- Source: s16 PCM from `OS_SMP_TAB[slot]` (`digitakt-firmware-map`); per grain a Q16 fraction + integer frame index, linear interpolation, forward only.
+- Window: 256-entry tables generated at build time (`tools/gen_tables.py`): half-sine blended with gate or quick decay by ENV, built once per voice into a live Q16 table whenever the shape changes (`build_win`); Q24 window phase.
+- Pitch: shadow-voice speed times an integer-semitone ratio table (`gr_ratio`, +-12) for SPRD-tune.
+- Scheduler: periodic or uniform-random intervals, xorshift32 (no libc); #19-safe: `next_in` is capped to one interval (two in random mode) each block.
+- **Cost model:** grain length in output frames = clamp(interval x RTIO >> 8, 16, 65535), *independent of pitch*; periodic overlap = ceil(RTIO) <= 8, the pool is 8 grains per voice, and a full pool skips the new grain. A longer grain from low pitch no longer exists (the old fixed-2400-source-frame grains grew to 4-10x at TUNE -12..-24 and froze the UI on hardware, issue #18). Worst case per voice: 8 grains x 32 frames x ~26 instructions (interpolating loop) ~ 8k per block; the integer-step loop (unity speed) is half that.
 
 ## Process
 Write C reference (host-compiled) + Python fixed-point model first, assert bit-exactness against the on-target code in Unicorn (`digitakt-testing`), then integrate.
@@ -47,6 +44,6 @@ Write C reference (host-compiled) + Python fixed-point model first, assert bit-e
   near ends. Mark hot loops `noinline` so each gets its own registers (an inlined merged loop kept a branch inside and spilled
   to the stack, ~45 instr/sample). `do { } while (--n)` (n >= 1) saves the `moveq/cmp` count test.
 - Specialise on loop-invariant cases: unity-speed grains (integer step, fraction 0) skip interpolation (13 vs ~26 instr/sample);
-  a per-voice cached window table replaces per-sample shape blending; random shapes use pre-blended global tables.
+  a per-voice cached window table replaces per-sample shape blending.
 - Costs measured: grain-sample 13 (integer step) to ~26 (interpolated) instructions; per-block overhead ~300 (clear/clamp loops).
 - Instructions are not cycles: confirm margins with `emu.fwcheck` (timing mode) under load.

@@ -48,12 +48,22 @@ description: Playbook for finding things in the Digitakt mk1 OS 1.53 firmware: o
    parameter descriptors at `0x401a9d9c`) and decode fields by comparing entries that differ in one known way.
    RAM-initialised structures (like the page layouts at `0x4197ced8`) are not in the image: dump them from the
    emulator (`MEMDUMP="4197ced8:192"`).
+8. **Count executions of every reader of a table during a UI action.** To find which of the 44 descriptor-table readers
+   draws the SRC page captions (instead of reading all 44 by hand), put `UC_HOOK_CODE` counters on each reader address
+   (`SITE_COUNTS="addr,..."` in `tests/emu/scale_probe.py`; addresses come from `grep -n "401a 9d9c" s3.dis`), drive the
+   page (view it, then turn a knob) and print the hit counts per phase: only 2 accessors fired for the captions/titles,
+   `0x4000fe8a` and `0x4000feac`. Then log their arguments (`ARG_TRACE="addr,..."` prints the entry address, arg1's high
+   half, arg1's vtable and arg2) to learn the signature `(param object, descriptor id)` and what the object is.
 
 ## Cross-checks
 - Treat any single source (digislicer notes, digi1_mods TECHNICAL_NOTES, a subagent's report) as a hint until a
   disassembly read or an emulator measurement confirms it. Several early assumptions (digiemu's location, which
   synth call covers voice 0, defaults on machine switch) were wrong.
 - A verified mod build proves a well-formed file, not working code; emulation is the first real test.
+- **An earlier call may also read what you force.** Forcing the shadow voice's PLAY word to FWD.L inside the hook around
+  `0x400757fe` did nothing: the call before it (`0x40075184`) also reads the smoothed PLAY word and decides when a
+  non-looping voice ends. Check every reader of a parameter (SITE_COUNTS/WATCH on its address) and put the override
+  before the first one.
 - Record each finding with how it was verified (see "Measured in digiemu" notes in the other skills).
 
 ## Sibling repos worth knowing (read only what you need)

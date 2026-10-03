@@ -3,9 +3,11 @@
 
 The firmware keeps one 52-byte descriptor per parameter id at 0x401a9d9c (13 longs: owner, slot,
 min, max, default, flags, ..., long-name ptr, group ptr, short-label ptr). Ids 1-3 are unused
-"Error" placeholders; this turns them into GRANULAR's DENS, SHAPE and RAND. Fields not listed here
-are copied from the stock descriptor of the same slot (BR 0x6e, LEN 0x71, LOOP 0x72), so the
-loader's flags/NRPN/LFO-destination numbers stay consistent. The stock bytes come from the user's
+"Error" placeholders; this turns them into GRANULAR's RTIO, SPRD and ENV. Fields not listed here
+are copied from the stock descriptor of the same slot (LEN 0x71, LOOP 0x72, PLAY 0x6d), so the
+loader's flags/NRPN/LFO-destination numbers stay consistent (their list/icon formatting lives in
+per-id RAM objects, which ids 1-3 do not have). It also writes the two label-accessor hook sites
+(0x4000fe8a short label, 0x4000feac long name; see mod/page.s). The stock bytes come from the user's
 own firmware file (never committed): ELEKLOADER_STOCK or ../Digitakt_OS1.53.syx."""
 import json
 import os
@@ -19,12 +21,14 @@ from elekloader import devices, syx  # noqa: E402
 BASE, STRIDE, MAIN = 0x401a9d9c, 52, 0x40000400
 GROUP = 0x401c6afe                       # the stock "Sample" group string
 
-# id: (copy-from id, slot, min, max, default, name symbol, short symbol)
+# id: (copy-from id, slot, min, max, default, name symbol, short symbol); values are 8.8 fixed point
 NEW = {
-    1: (0x6e, 0x13, 0, 0x7f00, 0x4000, "digigrain_str_dens_long", "digigrain_str_dens"),
-    2: (0x71, 0x16, 0, 0x7f00, 0x4000, "digigrain_str_shape_long", "digigrain_str_shape"),
-    3: (0x72, 0x17, 0, 0x7f00, 0x0000, "digigrain_str_rand_long", "digigrain_str_rand"),
+    1: (0x71, 22, 0x0040, 0x0800, 0x0100, "digigrain_str_rtio_long", "digigrain_str_rtio"),     # RTIO 0.25..8.00
+    2: (0x72, 23, 0, 0x7f00, 0x4000, "digigrain_str_sprd_long", "digigrain_str_sprd"),          # SPRD 0..127
+    3: (0x6d, 18, 0, 0x7f00, 0x4000, "digigrain_str_env_long", "digigrain_str_env"),            # ENV 0..127
 }
+# the label accessors: (address, target); stock = their first two instructions (10 bytes)
+HOOKS = [(0x4000fe8a, "digigrain_label_short"), (0x4000feac, "digigrain_label_long")]
 OWNER = 6                                # not 0-3, so Randomize lists never show them for stock machines
 
 
@@ -42,7 +46,12 @@ def main():
     with open(path_json) as f:
         mod = json.load(f)
     lo, hi = BASE + STRIDE * 1, BASE + STRIDE * 4
-    mod["sites"] = [s for s in mod["sites"] if not lo <= int(s["addr"], 16) < hi]
+    hook_addrs = {a for a, _ in HOOKS}
+    mod["sites"] = [s for s in mod["sites"]
+                    if not lo <= int(s["addr"], 16) < hi and int(s["addr"], 16) not in hook_addrs]
+    for a, target in HOOKS:
+        mod["sites"].append({"addr": "0x%x" % a, "stock": image[a - MAIN:a - MAIN + 10].hex(),
+                             "op": "jmp", "target": target})
     for pid, (src, slot, mn, mx, df, name, short) in NEW.items():
         base = BASE + STRIDE * pid
         stock = desc(pid)
