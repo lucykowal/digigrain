@@ -43,7 +43,7 @@ startup menu, then send the stock `.syx`. Never commit firmware (`*.syx`,
 ## Future work
 
 - Custom value readouts (Hz, offset from noon) for DENS / SHAPE / RAND
-- Optimise the grain loop (about 65 instructions per grain-sample today)
+- Cycle-accurate check of the render margin with eight dense voices; further loop tuning (the interpolating loop is ~26 instructions per grain-sample, the unity-speed loop 13)
 - Hardware testing; Poisson random intervals
 
 ## Granular Parameters

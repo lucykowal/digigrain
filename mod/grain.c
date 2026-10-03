@@ -19,6 +19,7 @@ void gr_reset(gvoice_t *v, unsigned seed)
         v->g[i].active = 0;
     v->next_in = 0;
     v->rng = seed ? seed : 0x9e3779b9u;
+    v->win_shape = 1000;            /* no table built yet (shapes are -256..256) */
 }
 
 int gr_active(const gvoice_t *v)
@@ -96,18 +97,182 @@ static void start(gvoice_t *v, const gparams_t *p, int len, int delay)
     g->wph = 0;
     g->winc = 65536u / out_len;
     g->shape = shape;
+    g->tab = p->rand == 0 ? 0 : gr_win_q + ((shape + 272) >> 5) * GR_WIN_N;   /* nearest of 17 shapes */
     g->dir = p->dir;
     g->delay = delay;
     g->active = 1;
 }
 
+/* The live window for `shape` into v->win, Q16 (the same blend the reference loop used per sample). */
+static void build_win(gvoice_t *v, int shape)
+{
+    int i, sh = shape < 0 ? -shape : shape;
+    const short *alt = shape < 0 ? gr_win_gate : gr_win_decay;
+    for (i = 0; i < GR_WIN_N; i++) {
+        int w = gr_win_sine[i];
+        if (shape)
+            w += ((alt[i] - w) * sh) >> 8;
+        v->win[i] = (unsigned short)(2 * w);
+    }
+    v->win_shape = shape;
+}
+
+/* Exact reference loop: checks the grain's bounds before every frame. Used near the ends of the
+ * sample and of the window; the fast loops below must produce bit-identical results. `win` is the
+ * voice's live table for grains without their own. */
+static void run_slow(grain_t *g, const short *pcm, int len, int acc[GR_FRAMES], const unsigned short *win)
+{
+    const unsigned short *tab = g->tab ? g->tab : win;
+    int f;
+    for (f = g->delay; f < GR_FRAMES; f++) {
+        int a, b, s;
+        if (g->idx < 0 || g->idx >= len - 1 || g->wph >= 65536u) {
+            g->active = 0;
+            break;
+        }
+        a = pcm[g->idx];
+        b = pcm[g->idx + 1];
+        s = a + (((b - a) * (int)(g->frac >> 2)) >> 14);
+        acc[f] += (s * (int)(tab[g->wph >> 8] >> 1)) >> 15;
+        g->wph += g->winc;
+        if (g->dir > 0) {
+            unsigned t = g->frac + g->inc;
+            g->idx += (int)(t >> 16);
+            g->frac = t & 0xffffu;
+        } else {
+            unsigned lo = g->inc & 0xffffu;
+            g->idx -= (int)(g->inc >> 16);
+            if (g->frac >= lo) {
+                g->frac -= lo;
+            } else {
+                g->frac = g->frac + 65536u - lo;
+                g->idx--;
+            }
+        }
+    }
+}
+
+/* Fast loops: n >= 1 frames, no bounds checks (the caller proved them safe). The grain's position,
+ * fraction and window phase live in locals. The window tables are Q16 (twice Q15), so
+ * (s * w16) >> 16 is the same value as (s * w15) >> 15 and the ColdFire does it with a swap. Kept
+ * out of line so each loop gets its own registers. */
+#define NOINLINE __attribute__((noinline))
+
+/* forward, interpolated */
+static NOINLINE void fwd_tab(grain_t *g, const short *pcm, int *acc, int n, const unsigned short *win)
+{
+    const short *p = pcm + g->idx;
+    unsigned fr = g->frac, wp = g->wph, inc = g->inc, winc = g->winc;
+    do {
+        int a = p[0], s = a + (((p[1] - a) * (int)(fr >> 2)) >> 14);
+        unsigned t = fr + inc;
+        *acc++ += (s * (int)win[wp >> 8]) >> 16;
+        wp += winc;
+        p += t >> 16;
+        fr = t & 0xffffu;
+    } while (--n);
+    g->idx = (int)(p - pcm);
+    g->frac = fr;
+    g->wph = wp;
+}
+
+/* forward at a whole number of source frames per output frame, fraction 0: no interpolation */
+static NOINLINE void fwd_int(grain_t *g, const short *pcm, int *acc, int n, const unsigned short *win)
+{
+    const short *p = pcm + g->idx;
+    unsigned wp = g->wph, winc = g->winc;
+    int step = (int)(g->inc >> 16);
+    do {
+        *acc++ += (p[0] * (int)win[wp >> 8]) >> 16;
+        wp += winc;
+        p += step;
+    } while (--n);
+    g->idx = (int)(p - pcm);
+    g->wph = wp;
+}
+
+static NOINLINE void rev_tab(grain_t *g, const short *pcm, int *acc, int n, const unsigned short *win)
+{
+    const short *p = pcm + g->idx;
+    unsigned fr = g->frac, wp = g->wph, winc = g->winc;
+    unsigned lo = g->inc & 0xffffu, hi = g->inc >> 16;
+    do {
+        int a = p[0], s = a + (((p[1] - a) * (int)(fr >> 2)) >> 14);
+        *acc++ += (s * (int)win[wp >> 8]) >> 16;
+        wp += winc;
+        p -= hi;
+        if (fr >= lo) {
+            fr -= lo;
+        } else {
+            fr = fr + 65536u - lo;
+            p--;
+        }
+    } while (--n);
+    g->idx = (int)(p - pcm);
+    g->frac = fr;
+    g->wph = wp;
+}
+
+static NOINLINE void rev_int(grain_t *g, const short *pcm, int *acc, int n, const unsigned short *win)
+{
+    const short *p = pcm + g->idx;
+    unsigned wp = g->wph, winc = g->winc;
+    int step = (int)(g->inc >> 16);
+    do {
+        *acc++ += (p[0] * (int)win[wp >> 8]) >> 16;
+        wp += winc;
+        p -= step;
+    } while (--n);
+    g->idx = (int)(p - pcm);
+    g->wph = wp;
+}
+
+static void run_grain(grain_t *g, const short *pcm, int len, int acc[GR_FRAMES], const unsigned short *live)
+{
+    int f0 = g->delay, n = GR_FRAMES - f0, deact = 0;
+    unsigned room, nw;
+    int safe, whole;
+    const unsigned short *tab = g->tab ? g->tab : live;
+    if (g->wph >= 65536u) {
+        g->active = 0;
+        g->delay = 0;
+        return;
+    }
+    room = 65536u - g->wph;
+    if ((unsigned)n * g->winc >= room) {      /* the window ends in this block */
+        nw = (room + g->winc - 1) / g->winc;
+        if (nw < (unsigned)n) {
+            n = (int)nw;
+            deact = 1;
+        }
+    }
+    if (g->dir > 0)
+        safe = g->idx + (int)((g->frac + (unsigned)(n - 1) * g->inc) >> 16) <= len - 2;
+    else
+        safe = g->idx - (int)(((unsigned)(n - 1) * g->inc) >> 16) - 1 >= 0;
+    if (!safe) {
+        run_slow(g, pcm, len, acc, live);     /* the exact loop handles the sample's ends */
+        g->delay = 0;
+        return;
+    }
+    whole = g->frac == 0 && (g->inc & 0xffffu) == 0;
+    if (g->dir > 0)
+        (whole ? fwd_int : fwd_tab)(g, pcm, acc + f0, n, tab);
+    else
+        (whole ? rev_int : rev_tab)(g, pcm, acc + f0, n, tab);
+    if (deact)
+        g->active = 0;
+    g->delay = 0;
+}
+
 void gr_block(gvoice_t *v, const short *pcm, int len, const gparams_t *p, int out[GR_FRAMES])
 {
     int acc[GR_FRAMES];
-    int i, f;
+    int i, f, ran = 0;
     for (f = 0; f < GR_FRAMES; f++)
         acc[f] = 0;
     if (len >= 4) {
+        const unsigned short *live = gr_win_sine16;
         if (p->mode == 0) {
             v->next_in = 0;
         } else {
@@ -117,46 +282,21 @@ void gr_block(gvoice_t *v, const short *pcm, int len, const gparams_t *p, int ou
             }
             v->next_in -= GR_FRAMES;
         }
-        for (i = 0; i < GR_MAX; i++) {
-            grain_t *g = &v->g[i];
-            if (!g->active)
-                continue;
-            for (f = g->delay; f < GR_FRAMES; f++) {
-                int a, b, s, w, wo, sh = g->shape;
-                if (g->idx < 0 || g->idx >= len - 1 || g->wph >= 65536u) {
-                    g->active = 0;
-                    break;
-                }
-                a = pcm[g->idx];
-                b = pcm[g->idx + 1];
-                s = a + (((b - a) * (int)(g->frac >> 2)) >> 14);
-                w = gr_win_sine[g->wph >> 8];
-                if (sh < 0) {
-                    wo = gr_win_gate[g->wph >> 8];
-                    w += ((wo - w) * -sh) >> 8;
-                } else if (sh > 0) {
-                    wo = gr_win_decay[g->wph >> 8];
-                    w += ((wo - w) * sh) >> 8;
-                }
-                acc[f] += (s * w) >> 15;
-                g->wph += g->winc;
-                if (g->dir > 0) {
-                    unsigned t = g->frac + g->inc;
-                    g->idx += (int)(t >> 16);
-                    g->frac = t & 0xffffu;
-                } else {
-                    unsigned lo = g->inc & 0xffffu;
-                    g->idx -= (int)(g->inc >> 16);
-                    if (g->frac >= lo) {
-                        g->frac -= lo;
-                    } else {
-                        g->frac = g->frac + 65536u - lo;
-                        g->idx--;
-                    }
-                }
-            }
-            g->delay = 0;
+        if (p->shape != 0) {                  /* grains without a table follow the shape knob live */
+            if (v->win_shape != p->shape)
+                build_win(v, p->shape);
+            live = v->win;
         }
+        for (i = 0; i < GR_MAX; i++)
+            if (v->g[i].active) {
+                run_grain(&v->g[i], pcm, len, acc, live);
+                ran = 1;
+            }
+    }
+    if (!ran) {
+        for (f = 0; f < GR_FRAMES; f++)
+            out[f] = 0;
+        return;
     }
     for (f = 0; f < GR_FRAMES; f++)
         out[f] = acc[f] > 32767 ? 32767 : acc[f] < -32768 ? -32768 : acc[f];

@@ -22,11 +22,13 @@ SINE, GATE, DECAY, RATIO, AVG = _gt.tables()
 class Grain(ctypes.Structure):
     _fields_ = [("idx", ctypes.c_int), ("frac", ctypes.c_uint), ("inc", ctypes.c_uint),
                 ("wph", ctypes.c_uint), ("winc", ctypes.c_uint), ("shape", ctypes.c_int),
-                ("dir", ctypes.c_int), ("delay", ctypes.c_int), ("active", ctypes.c_int)]
+                ("dir", ctypes.c_int), ("delay", ctypes.c_int), ("active", ctypes.c_int),
+                ("tab", ctypes.c_void_p)]
 
 
 class Voice(ctypes.Structure):
-    _fields_ = [("g", Grain * GR_MAX), ("next_in", ctypes.c_int), ("rng", ctypes.c_uint)]
+    _fields_ = [("g", Grain * GR_MAX), ("next_in", ctypes.c_int), ("rng", ctypes.c_uint),
+                ("win_shape", ctypes.c_int), ("win", ctypes.c_ushort * 256)]
 
 
 class Params(ctypes.Structure):
@@ -72,7 +74,8 @@ class Model:
         shape = max(-256, min(256, shape))
         eff = max(256, (((p["rate"] >> 6) * (ratio >> 6)) >> 4))
         out_len = max(16, min(65535, (p["src_size"] << 16) // eff))
-        self.g.append(dict(idx=pos, frac=0, inc=eff, wph=0, winc=65536 // out_len, shape=shape,
+        q = None if p["rand"] == 0 else ((shape + 272) >> 5) * 32 - 256     # nearest of 17 table shapes
+        self.g.append(dict(idx=pos, frac=0, inc=eff, wph=0, winc=65536 // out_len, shape=q,
                            dir=p["dir"], delay=delay))
 
     def block(self, pcm, p):
@@ -93,7 +96,7 @@ class Model:
                 a, b = pcm[g["idx"]], pcm[g["idx"] + 1]
                 s = a + (((b - a) * (g["frac"] >> 2)) >> 14)
                 w = SINE[g["wph"] >> 8]
-                sh = g["shape"]
+                sh = p["shape"] if g["shape"] is None else g["shape"]   # live grains follow the shape knob
                 if sh < 0:
                     w += ((GATE[g["wph"] >> 8] - w) * -sh) >> 8
                 elif sh > 0:
@@ -184,6 +187,22 @@ class GrainTest(unittest.TestCase):
         for i, p in enumerate(cases):
             _, out = self.run_c(pcm, p, 150, seed=7 + i)
             self.assertEqual(out, self.run_model(pcm, p, 150, seed=7 + i), "case %d: %s" % (i, p))
+
+    def test_fuzz_against_model_including_edges(self):
+        import random
+        rng = random.Random(1234)
+        for case in range(250):
+            n = rng.choice([40, 200, 777, 3000, 20000])
+            pcm = [rng.randint(-20000, 20000) for _ in range(n)]
+            p = self.params(pos=rng.choice([0, 1, n // 2, n - 3, n - 2, n + 50, rng.randint(0, n)]),
+                            src_size=rng.choice([16, 100, 480, 2400, 6000]),
+                            rate=rng.choice([4096, 20000, 65536, 100000, 3 * 65536, 12 * 65536]),
+                            dir=rng.choice([1, -1]), mode=rng.choice([0, 1, 2, 2]),
+                            interval=rng.choice([1, 7, 50, 300, 2000, 9000]),
+                            rand=rng.choice([0, 0, 5, 64, 127]), shape=rng.choice([-256, -90, 0, 0, 33, 256]))
+            seed = rng.randint(1, 2 ** 32 - 1)
+            _, out = self.run_c(pcm, p, 70, seed=seed)
+            self.assertEqual(out, self.run_model(pcm, p, 70, seed=seed), "case %d n=%d %s" % (case, n, p))
 
     def test_norm_matches_model(self):
         for p in (self.params(), self.params(interval=100, shape=-200), self.params(rate=20000, interval=50),

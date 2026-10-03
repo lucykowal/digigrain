@@ -18,12 +18,15 @@ typedef struct {
     int dir;                        /* +1 forward, -1 reverse */
     int delay;                      /* output frames to wait in the grain's first block */
     int active;
+    const unsigned short *tab;      /* window table for this grain (random shapes), or 0: the voice's live table */
 } grain_t;
 
 typedef struct {
     grain_t g[GR_MAX];
     int next_in;                    /* frames until the next grain starts */
     unsigned rng;                   /* xorshift32 state, never 0 */
+    int win_shape;                  /* shape the cached window below was built for */
+    unsigned short win[256];        /* the live window for that shape, Q16 (blend of sine with gate or decay) */
 } gvoice_t;
 
 typedef struct {
