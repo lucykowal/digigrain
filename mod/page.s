@@ -93,3 +93,56 @@ digigrain_str_sprd:        .asciz  "SPRD"
 digigrain_str_env_long:    .asciz  "Grain Envelope"
 digigrain_str_env:         .asciz  "ENV"
         .balign 2
+
+| Value readouts. The SRC page's knob overlay (and its other value displays) call 0x400657ee(id, word)
+| with the parameter's 8.8 word; it runs the id's formatter into the firmware's readout buffer and
+| returns that buffer in d0. For SPRD (2) and ENV (3), which only we use, and for RATE (0x6e, BR's id) while
+| the active track is GRANULAR, rd_format (readout.c) fills the buffer instead; everything else redoes the
+| two replaced instructions (move.l 4(sp),d1 ; cmpi.l #164,d1) and runs the stock code.
+        .equ    READOUT_ON, 0x400657f8          | stock: after those two instructions
+        .equ    READOUT_BUF, 0x4197ce98         | the buffer the stock function returns
+        .equ    ACTIVE_TRACK, 0x4197b6b4        | long: the selected track 0..7
+        .equ    UI_KIT,     0x4199dc44          | pointer to the current kit
+        .equ    ID_SPRD,    2
+        .equ    ID_ENV,     3
+
+        .globl  digigrain_readout
+digigrain_readout:
+        move.l  4(%sp), %d1                     | the replaced instructions
+        cmpi.l  #164, %d1
+        moveq   #ID_SPRD, %d0
+        cmp.l   %d0, %d1
+        beq.s   2f
+        moveq   #ID_ENV, %d0
+        cmp.l   %d0, %d1
+        beq.s   2f
+        moveq   #ID_RATE, %d0
+        cmp.l   %d0, %d1
+        bne.s   9f
+        move.l  ACTIVE_TRACK, %d0               | RATE: only on a GRANULAR track
+        moveq   #7, %d1
+        cmp.l   %d0, %d1
+        bcs.s   8f                              | track > 7 (unsigned)
+        movea.l UI_KIT, %a0
+        move.l  %a0, %d1
+        beq.s   8f
+        move.l  #162, %d1                       | the sound at kit + 0x20 + 0xa2 * track
+        mulu.l  %d1, %d0
+        adda.l  %d0, %a0
+        moveq   #0, %d0
+        move.b  0x20+126(%a0), %d0              | its machine byte
+        moveq   #MACHINE, %d1
+        cmp.l   %d0, %d1
+        bne.s   8f
+2:      pea     READOUT_BUF                     | rd_format(id, word, buf)
+        move.l  12(%sp), %d1
+        move.l  %d1, -(%sp)
+        move.l  12(%sp), %d1
+        move.l  %d1, -(%sp)
+        jsr     rd_format
+        lea     12(%sp), %sp
+        move.l  #READOUT_BUF, %d0
+        rts
+8:      move.l  4(%sp), %d1                     | the id again
+9:      cmpi.l  #164, %d1                       | the replaced instructions' flags
+        jmp     READOUT_ON

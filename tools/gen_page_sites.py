@@ -28,7 +28,8 @@ NEW = {
     3: (0x6d, 18, 0, 0x7f00, 0x4000, "digigrain_str_env_long", "digigrain_str_env"),            # ENV 0..127
 }
 # the label accessors: (address, target); stock = their first two instructions (10 bytes)
-HOOKS = [(0x4000fe8a, "digigrain_label_short"), (0x4000feac, "digigrain_label_long")]
+HOOKS = [(0x4000fe8a, "digigrain_label_short"), (0x4000feac, "digigrain_label_long"),
+         (0x400657ee, "digigrain_readout")]   # the last: id -> readout text (mod/page.s, mod/readout.c)
 OWNER = 6                                # not 0-3, so Randomize lists never show them for stock machines
 
 
