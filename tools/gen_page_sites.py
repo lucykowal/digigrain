@@ -27,9 +27,11 @@ NEW = {
     2: (0x72, 23, 0, 0x7f00, 0x4000, "digigrain_str_sprd_long", "digigrain_str_sprd"),          # SPRD 0..127
     3: (0x6d, 18, 0, 0x7f00, 0x4000, "digigrain_str_env_long", "digigrain_str_env"),            # ENV 0..127
 }
-# the label accessors: (address, target); stock = their first two instructions (10 bytes)
-HOOKS = [(0x4000fe8a, "digigrain_label_short"), (0x4000feac, "digigrain_label_long"),
-         (0x400657ee, "digigrain_readout")]   # the last: id -> readout text (mod/page.s, mod/readout.c)
+# the label accessors and the readout functions: (address, target, stock length); the stock bytes are the
+# first two instructions (whole instructions covering the 6 bytes of a jmp)
+HOOKS = [(0x4000fe8a, "digigrain_label_short", 10), (0x4000feac, "digigrain_label_long", 10),
+         (0x400657ee, "digigrain_readout", 10),     # id, word -> the knob-turn title's value text
+         (0x4000f324, "digigrain_caption", 8)]      # obj, id, word, buf -> the value under a turning knob
 OWNER = 6                                # not 0-3, so Randomize lists never show them for stock machines
 
 
@@ -47,11 +49,11 @@ def main():
     with open(path_json) as f:
         mod = json.load(f)
     lo, hi = BASE + STRIDE * 1, BASE + STRIDE * 4
-    hook_addrs = {a for a, _ in HOOKS}
+    hook_addrs = {a for a, _, _ in HOOKS}
     mod["sites"] = [s for s in mod["sites"]
                     if not lo <= int(s["addr"], 16) < hi and int(s["addr"], 16) not in hook_addrs]
-    for a, target in HOOKS:
-        mod["sites"].append({"addr": "0x%x" % a, "stock": image[a - MAIN:a - MAIN + 10].hex(),
+    for a, target, n in HOOKS:
+        mod["sites"].append({"addr": "0x%x" % a, "stock": image[a - MAIN:a - MAIN + n].hex(),
                              "op": "jmp", "target": target})
     for pid, (src, slot, mn, mx, df, name, short) in NEW.items():
         base = BASE + STRIDE * pid

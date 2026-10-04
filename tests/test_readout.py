@@ -17,12 +17,13 @@ def model(pid, v):
     if pid == ENV:
         if k == 0:
             return "SINE"
-        return ("GATE %d%%" if k < 0 else "DECAY %d%%") % (a * 4 * 100 // 256)
+        pct = a * 4 * 100 // 256
+        return ("GATE" if pct >= 100 else "GATE%d%%" % pct) if k < 0 else "DCAY%d%%" % pct
     if a <= 1:
         return "OFF"
     if pid == SPRD:
         amount = min(64, (a - 1) * 64 // 62)
-        return ("POS %d%%" if k < 0 else "PIT %d%%") % (amount * 100 // 64)
+        return ("POS%d%%" if k < 0 else "PIT%d%%") % (amount * 100 // 64)
     hz16 = 4 + (a - 1) * (a - 1) // 2
     if hz16 < 160:
         h = hz16 * 100 // 16
@@ -70,17 +71,17 @@ class ReadoutTest(unittest.TestCase):
         self.assertEqual(self.fmt(RATE, 0)[1], "124Hz")        # a = 64 is one step past the stock range end
         self.assertEqual(self.fmt(RATE, 127 << 8)[1], "~120Hz")
         self.assertEqual(self.fmt(SPRD, 64 << 8)[1], "OFF")
-        self.assertEqual(self.fmt(SPRD, 0)[1], "POS 100%")
-        self.assertEqual(self.fmt(SPRD, 127 << 8)[1], "PIT 100%")
+        self.assertEqual(self.fmt(SPRD, 0)[1], "POS100%")
+        self.assertEqual(self.fmt(SPRD, 127 << 8)[1], "PIT100%")
         self.assertEqual(self.fmt(ENV, 64 << 8)[1], "SINE")
-        self.assertEqual(self.fmt(ENV, 0)[1], "GATE 100%")
-        self.assertEqual(self.fmt(ENV, 127 << 8)[1], "DECAY 98%")
+        self.assertEqual(self.fmt(ENV, 0)[1], "GATE")
+        self.assertEqual(self.fmt(ENV, 127 << 8)[1], "DCAY98%")
 
     def test_word_fraction_and_range_are_tolerated(self):
         self.assertEqual(self.fmt(ENV, (64 << 8) | 0xff)[1], "SINE")
         self.assertEqual(self.fmt(RATE, 0x7fff)[1], "~120Hz")
         self.assertEqual(self.fmt(RATE, -5)[1], "124Hz")
-        self.assertEqual(self.fmt(ENV, 0x10000)[1], "DECAY 98%")
+        self.assertEqual(self.fmt(ENV, 0x10000)[1], "DCAY98%")
 
     def test_other_ids_untouched(self):
         buf = ctypes.create_string_buffer(b"\xaa" * 8, 8)

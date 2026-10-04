@@ -1,17 +1,19 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* digigrain: value readouts for the GRANULAR page's RATE, SPRD and ENV knobs (OS 1.53).
  *
- * The SRC page turns a parameter's word into text through 0x400657ee(id, word), which fills the
- * firmware's readout buffer (page.s hooks it). Pure functions on caller-supplied memory, so the
+ * The SRC page turns a parameter's word into text through 0x400657ee(id, word) (the knob-turn
+ * title) and 0x4000f324(obj, id, word, out) (the value under a turning knob); page.s hooks both. Pure functions on caller-supplied memory, so the
  * same code runs on the host (tests/test_readout.py). The mappings mirror granular.c's render:
  * keep them in step (noon = knob value 64, "none" within one step of it).
  *
  *   RATE  OFF at noon; otherwise the grain rate in Hz (0.25 .. 120), "~" in front when it is
  *         the random (clockwise) side. hz16 = 4 + kk * kk / 2 with kk = |v - 64| - 1.
- *   SPRD  OFF at noon; counter-clockwise "POS nn%" (start-position jitter), clockwise "PIT nn%"
+ *   SPRD  OFF at noon; counter-clockwise "POSnn%" (start-position jitter), clockwise "PITnn%"
  *         (random pitch, 100% = +-12 semitones). nn = engine amount (0..64) x 100 / 64.
- *   ENV   SINE at noon; counter-clockwise "GATE nn%", clockwise "DECAY nn%": the blend of the
- *         sine window with the gate or the quick decay, |shape| x 100 / 256, shape = (v - 64) x 4.
+ *   ENV   SINE at noon; counter-clockwise "GATEnn%", clockwise "DCAYnn%": the blend of the
+ *         sine window with the gate or the quick decay, |shape| x 100 / 256, shape = (v - 64) x 4;
+ *         the pure gate (100%) reads just "GATE".
+ * At most 7 characters: that is what fits under a knob (the value replaces its caption).
  */
 #define RD_SPRD 2         /* descriptor ids: page.s / tools/gen_page_sites.py */
 #define RD_ENV  3
@@ -56,16 +58,19 @@ int rd_format(int id, int word, char *buf)
         if (k == 0) {
             p = put_str(p, "SINE");
         } else {
-            p = put_str(p, k < 0 ? "GATE " : "DECAY ");
-            p = put_uint(p, (unsigned)(a * 4 * 100 / 256), 1);
-            *p++ = '%';
+            unsigned pct = (unsigned)(a * 4 * 100 / 256);
+            p = put_str(p, k < 0 ? "GATE" : "DCAY");
+            if (pct < 100) {                  /* pure gate: just GATE */
+                p = put_uint(p, pct, 1);
+                *p++ = '%';
+            }
         }
     } else if (a <= 1) {
         p = put_str(p, "OFF");
     } else if (id == RD_SPRD) {
         amount = (a - 1) * 64 / 62;
         amount = amount > 64 ? 64 : amount;
-        p = put_str(p, k < 0 ? "POS " : "PIT ");
+        p = put_str(p, k < 0 ? "POS" : "PIT");
         p = put_uint(p, (unsigned)(amount * 100 / 64), 1);
         *p++ = '%';
     } else {

@@ -77,6 +77,12 @@
    "target": "digigrain_readout"
   },
   {
+   "addr": "0x4000f324",
+   "stock": "4fefffec48d70c1c",
+   "op": "jmp",
+   "target": "digigrain_caption"
+  },
+  {
    "addr": "0x401a9dd0",
    "stock": "ffffffffffffffff0000000000000000000000000000000100010021ffffffff0000000100000000",
    "op": "bytes",

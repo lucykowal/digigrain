@@ -66,5 +66,6 @@ startup menu, then send the stock `.syx`. Never commit firmware (`*.syx`,
   (none), POS 0, RTIO 1.00 and ENV 64 (sine).
 - The RATE and POS labels come from hooks on the page's label lookups (the
   firmware has too few spare parameter descriptors for unique names).
-- Open work (custom readouts, further optimisation, hardware tests) is in the
-  issue tracker.
+- RATE, SPRD and ENV print readable values (Hz / OFF, POS or PIT percent, SINE / GATE / DCAY percent)
+  through hooks on the page's two value-to-text routines.
+- Open work (further optimisation, hardware tests) is in the issue tracker.

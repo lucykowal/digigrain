@@ -50,10 +50,10 @@ from unicorn.m68k_const import UC_M68K_REG_A7, UC_M68K_REG_PC  # noqa: E402
 
 MAP = {}
 if os.environ.get("GRANULAR"):        # symbol addresses of our build, from elekloader's linker
-    sys.path.insert(0, os.path.join(ROOT, "..", "elekloader"))
+    sys.path.insert(0, os.environ.get("ELEKLOADER_DIR", os.path.join(ROOT, "..", "elekloader")))
     from elekloader import syx as _syx, devices as _dev, elemod as _em, link as _link
     import glob
-    _st = _syx.Syx.load(os.path.join(ROOT, "..", "Digitakt_OS1.53.syx"))
+    _st = _syx.Syx.load(os.environ.get("ELEKLOADER_STOCK", os.path.join(ROOT, "..", "Digitakt_OS1.53.syx")))
     _d, _r = _dev.identify(_st.sha256)
     _mods = [glob.glob(os.path.join(ROOT, "out", "core", "core-*.elemod"))[0],
              glob.glob(os.path.join(ROOT, "out", "mod", "digigrain-*.elemod"))[0]]
@@ -198,6 +198,14 @@ def spin(m, pc, *args, **kw):
             except Exception:
                 vt = None
             arg_seen.add((hex(ad), hex(a1 >> 16), hex(vt) if vt is not None else None, hex(a2)))
+        def ret_hook(u, ad, sz, d):        # RET_TRACE: who calls the function at `ad` (return address, after step 2100)
+            if state["n"] >= 2100:
+                sp_ = u.reg_read(UC_M68K_REG_A7)
+                ra_ = struct.unpack(">I", rd(u, sp_, 4))[0]
+                state.setdefault("rets", {}).setdefault((hex(ad), hex(ra_)), 0)
+                state["rets"][(hex(ad), hex(ra_))] += 1
+        for a in (int(x, 16) for x in os.environ.get("RET_TRACE", "").split(",") if x):
+            uc.hook_add(UC_HOOK_CODE, ret_hook, begin=a, end=a)
         from unicorn import m68k_const as _mc
         for spec in (x for x in os.environ.get("REGS", "").split(",") if x):     # REGS="addr:A3,..." print a register at an address
             addr_s, reg_s = spec.split(":")
@@ -284,6 +292,8 @@ E.run()
 pcm = E.audio_take()
 print("hook hits:", state.get("hits", 0), "audio peak:", max((abs(x) for x in struct.unpack("<%dh" % (len(pcm) // 2), pcm)), default=0))
 print("error:", E.error, "steps:", state["n"], "block hits with signal:", len(state["rows"]))
+for k_, v_ in sorted(state.get("rets", {}).items()):
+    print("RET_TRACE %s called from %s x%d" % (k_[0], k_[1], v_))
 for t_ in sorted(state.get("watch", ())):
     print("WATCH read", t_)
 rows = state["rows"]
