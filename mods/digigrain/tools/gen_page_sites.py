@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rewrite the parameter-descriptor sites in mod/mod.json (Digitakt mk1 OS 1.53).
+"""Rewrite the parameter-descriptor sites in mods/digigrain/mod.json (Digitakt mk1 OS 1.53).
 
 The firmware keeps one 52-byte descriptor per parameter id at 0x401a9d9c (13 longs: owner, slot,
 min, max, default, flags, ..., long-name ptr, group ptr, short-label ptr). Ids 1-3 are unused
@@ -7,14 +7,15 @@ min, max, default, flags, ..., long-name ptr, group ptr, short-label ptr). Ids 1
 are copied from the stock descriptor of the same slot (LEN 0x71, LOOP 0x72, PLAY 0x6d), so the
 loader's flags/NRPN/LFO-destination numbers stay consistent (their list/icon formatting lives in
 per-id RAM objects, which ids 1-3 do not have). It also writes the two label-accessor hook sites
-(0x4000fe8a short label, 0x4000feac long name; see mod/page.s). The stock bytes come from the user's
+(0x4000fe8a short label, 0x4000feac long name; see src/page.s). The stock bytes come from the user's
 own firmware file (never committed): ELEKLOADER_STOCK or ../Digitakt_OS1.53.syx."""
 import json
 import os
 import struct
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MOD_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(MOD_DIR))
 sys.path.insert(0, os.environ.get("ELEKLOADER_DIR", os.path.join(ROOT, "..", "elekloader")))
 from elekloader import devices, syx  # noqa: E402
 
@@ -45,7 +46,7 @@ def main():
         a = BASE + STRIDE * pid - MAIN
         return image[a:a + STRIDE]
 
-    path_json = os.path.join(ROOT, "mod", "mod.json")
+    path_json = os.path.join(MOD_DIR, "mod.json")
     with open(path_json) as f:
         mod = json.load(f)
     lo, hi = BASE + STRIDE * 1, BASE + STRIDE * 4

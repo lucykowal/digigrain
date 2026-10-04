@@ -9,13 +9,15 @@ Only Digitakt mk1 OS 1.53 supports linkable (format 2) mods. Sibling checkouts u
 
 ## Repo commands (this repo)
 ```
-make build   # core (once) + mod -> out/
-make lint    # mod alone, then with core and the stock OS
-make patch   # out/test.syx = stock + core + mod (--version 0.0t)
-make test    # stdlib unit tests
+make build   # core (once, out/core) + every mod -> out/<mod>/
+make lint    # boundary check (mods -> common only), then each mod alone and with core and the stock OS
+make patch   # out/<mod>/test.syx = stock + core + that mod (--version 0.0t)
+make test    # stdlib unit tests: tests/, common/tests/, mods/<mod>/tests/
 make check   # all of the above
+make check MOD=digigrain          # any target for one mod only
+make new-mod NAME=my-mod          # scaffold mods/my-mod from templates/mod
 ```
-Scripts live in `scripts/`; `scripts/env.sh` sets `PYTHONPATH`, `ELEKLOADER_STOCK`, and `ELEKLOADER_CROSS=m68k-elf-` when only Homebrew's `m68k-elf-*` tools exist.
+Layout: one mod per `mods/<name>/` (`mod.json`, `src/`, `tests/`, optional `tools/`); shared code in `common/` (`include/`, `src/`). `scripts/build.sh` stages `out/<mod>/stage` = the mod's `mod.json` + `src/` + a `common` symlink, because the SDK builds one directory: list shared sources in `sources` as `common/src/x.c` and include headers as `"common/include/x.h"`. Never depend on another mod (`tools/check_boundaries.py`, run by lint, fails on it). `.o` names come from basenames, so keep source file names unique across a mod and the common files it uses. Scripts live in `scripts/`; `scripts/env.sh` sets `PYTHONPATH`, `ELEKLOADER_STOCK`, and `ELEKLOADER_CROSS=m68k-elf-` when only Homebrew's `m68k-elf-*` tools exist.
 
 ## Raw loop (what the scripts run)
 ```

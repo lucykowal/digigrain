@@ -35,7 +35,7 @@ description: Playbook for finding things in the Digitakt mk1 OS 1.53 firmware: o
    boundaries are where hooks go. The render ISR order is in the firmware-map skill.
 3. **Stack argument layouts** come from the caller: count the `pea`/`move.l x,-(sp)` before the `jsr`.
 4. **Struct strides** show up as `lsl #7` (128), `mulu #94`, `moveq #106`, `lea (36,%a0)` etc.
-5. **Poke and measure in digiemu** (`tests/emu/scale_probe.py`, env `POKE`, `MEMDUMP`, `TRACE_GR`, `MEASURE`).
+5. **Poke and measure in digiemu** (`mods/digigrain/tests/emu/scale_probe.py`, env `POKE`, `MEMDUMP`, `TRACE_GR`, `MEASURE`).
    This answered what static reading could not: which of three parameter copies the synth actually reads
    (zeroing the 16-bit smoothed copy did nothing; the 32-bit expanded copy at `0x80002B50 + 212*v` mattered),
    where bit reduction acts (block values collapse to a constant at BR=127, so it is inside the synth),
@@ -50,7 +50,7 @@ description: Playbook for finding things in the Digitakt mk1 OS 1.53 firmware: o
    emulator (`MEMDUMP="4197ced8:192"`).
 8. **Count executions of every reader of a table during a UI action.** To find which of the 44 descriptor-table readers
    draws the SRC page captions (instead of reading all 44 by hand), put `UC_HOOK_CODE` counters on each reader address
-   (`SITE_COUNTS="addr,..."` in `tests/emu/scale_probe.py`; addresses come from `grep -n "401a 9d9c" s3.dis`), drive the
+   (`SITE_COUNTS="addr,..."` in `mods/digigrain/tests/emu/scale_probe.py`; addresses come from `grep -n "401a 9d9c" s3.dis`), drive the
    page (view it, then turn a knob) and print the hit counts per phase: only 2 accessors fired for the captions/titles,
    `0x4000fe8a` and `0x4000feac`. Then log their arguments (`ARG_TRACE="addr,..."` prints the entry address, arg1's high
    half, arg1's vtable and arg2) to learn the signature `(param object, descriptor id)` and what the object is.

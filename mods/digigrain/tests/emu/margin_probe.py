@@ -15,7 +15,9 @@ import os
 import subprocess
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MOD_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+OUT_MOD = os.path.join(ROOT, "out", "digigrain")
 EMU = os.path.join(ROOT, "..", "digiemumac")
 RTIO, SPRD = "F", "C"            # RTIO to 8:1 (8 overlapping grains), SPRD to the full random pitch spread
 DENS = "B"                      # the RATE knob on the GRANULAR SRC page (noon = no grains, CW = random intervals)
@@ -85,15 +87,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("n", type=int, help="GRANULAR tracks (1..8)")
     ap.add_argument("--no-timing", action="store_true")
-    ap.add_argument("--fwcheck", action="store_true", help="boot out/test.syx under emu.fwcheck first (about 4 min, once)")
-    ap.add_argument("--out", default=os.path.join(ROOT, "out", "margin"))
+    ap.add_argument("--fwcheck", action="store_true", help="boot out/digigrain/test.syx under emu.fwcheck first (about 4 min, once)")
+    ap.add_argument("--out", default=os.path.join(OUT_MOD, "margin"))
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     if args.fwcheck:
         path = os.path.join(args.out, "margin-%d.script" % args.n)
         with open(path, "w") as f:
             f.write(script(args.n))
-        subprocess.call([sys.executable, "-m", "emu.fwcheck", os.path.join(ROOT, "out", "test.syx"), "--script", path,
+        subprocess.call([sys.executable, "-m", "emu.fwcheck", os.path.join(OUT_MOD, "test.syx"), "--script", path,
                          "--no-timing", "--no-boot-strict", "--out", os.path.join(args.out, "run-%d" % args.n)], cwd=EMU)
         return
     run(args.n, args.out, not args.no_timing)

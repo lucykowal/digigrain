@@ -9,12 +9,12 @@
  "device": "digitakt-mk1",
  "os": "1.53",
  "sources": [
-  "granular.c",
-  "grain.c",
-  "machine.s",
-  "synth.s",
-  "page.s",
-  "readout.c"
+  "src/granular.c",
+  "src/grain.c",
+  "src/machine.s",
+  "src/synth.s",
+  "src/page.s",
+  "src/readout.c"
  ],
  "requires": [
   "core"
