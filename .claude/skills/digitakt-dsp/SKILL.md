@@ -20,9 +20,9 @@ Generate tables at build time with Python (`../digi1_mods/tools/gen_eq_tables.py
 ## Granular design (DaisySP findings)
 DaisySP (`../DaisySP`, MIT) has only `GranularPlayer`: a 2-grain, 50%-overlap time-stretch player, float, libm, nearest-neighbour reads, with an OOB index-wrap bug and double phasor advance. **Do not port; write fresh.** Reuse only the ideas (half-sine window, sawtooth phasor grain restart). MIT notices must be kept if any code is copied; algorithm ideas need none; our mod is GPL-2.0-or-later.
 
-Implemented engine (`mod/grain.c`, API in `mod/grain.h`):
+Implemented engine (`mods/digigrain/src/grain.c`, API in `mods/digigrain/src/grain.h`):
 - Source: s16 PCM from `OS_SMP_TAB[slot]` (`digitakt-firmware-map`); per grain a Q16 fraction + integer frame index, linear interpolation, forward only.
-- Window: 256-entry tables generated at build time (`tools/gen_tables.py`): half-sine blended with gate or quick decay by ENV, built once per voice into a live Q16 table whenever the shape changes (`build_win`); Q24 window phase.
+- Window: 256-entry tables generated at build time (`mods/digigrain/tools/gen_tables.py`): half-sine blended with gate or quick decay by ENV, built once per voice into a live Q16 table whenever the shape changes (`build_win`); Q24 window phase.
 - Pitch: shadow-voice speed times an integer-semitone ratio table (`gr_ratio`, +-12) for SPRD-tune.
 - Scheduler: periodic or uniform-random intervals, xorshift32 (no libc); #19-safe: `next_in` is capped to one interval (two in random mode) each block.
 - **Cost model:** grain length in output frames = clamp(interval x RTIO >> 8, 16, 65535), *independent of pitch*; periodic overlap = ceil(RTIO) <= 8, the pool is 8 grains per voice, and a full pool skips the new grain. A longer grain from low pitch no longer exists (the old fixed-2400-source-frame grains grew to 4-10x at TUNE -12..-24 and froze the UI on hardware, issue #18). Worst case per voice: 8 grains x 32 frames x ~26 instructions (interpolating loop) ~ 8k per block; the integer-step loop (unity speed) is half that.
@@ -32,10 +32,10 @@ Write C reference (host-compiled) + Python fixed-point model first, assert bit-e
 
 ## ColdFire C optimisation notes (from tuning the grain loops, measured)
 - Workflow: write the C reference and a Python model first (bit-exact), then optimise only with the model's tests green
-  (`tests/test_grain.py`, including the random edge fuzz). Count instructions with `tests/emu/grain_bench.py`
-  (compiles `mod/grain.c` with the cross gcc and runs `gr_block` in the patched Unicorn: seconds) and confirm in the
-  firmware with `tests/emu/bench.sh`. Look at the generated code: `m68k-elf-gcc -mcpu=54455 -O2 -ffreestanding
-  -fno-builtin -nostdlib -fno-pic -fno-pie -fomit-frame-pointer -I mod -S mod/grain.c -o x.s`.
+  (`mods/digigrain/tests/test_grain.py`, including the random edge fuzz). Count instructions with `mods/digigrain/tests/emu/grain_bench.py`
+  (compiles `mods/digigrain/src/grain.c` with the cross gcc and runs `gr_block` in the patched Unicorn: seconds) and confirm in the
+  firmware with `mods/digigrain/tests/emu/bench.sh`. Look at the generated code: `m68k-elf-gcc -mcpu=54455 -O2 -ffreestanding
+  -fno-builtin -nostdlib -fno-pic -fno-pie -fomit-frame-pointer -I mods/digigrain/src -S mods/digigrain/src/grain.c -o x.s`.
 - `asr/lsr #imm` only goes up to 8 on ColdFire: a shift by 14 or 15 costs `moveq` + register shift (2 insns). A shift by 16 is
   `swap` (+ `ext.l`). Make products land on a 16-bit boundary: store tables as `2 x Q15` unsigned Q16 so
   `(s * w16) >> 16 == (s * w15) >> 15` exactly (no overflow: 32768 x 65534 < 2^31).

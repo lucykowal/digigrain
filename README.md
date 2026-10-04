@@ -1,11 +1,13 @@
-# Digigrain
+# lucys-mod
 
 Custom firmware mods for the Elektron Digitakt (mk1, OS 1.53), built with
-[elekloader](../elekloader).
+[elekloader](../elekloader). One directory per mod under `mods/`; shared code in `common/`.
+Open work and test status are in the GitHub issue tracker. Design notes for
+contributors and agents are in `.claude/skills/` and each mod's `CLAUDE.md`.
 
-A granular playback SRC machine (id 6, GRANULAR). Verified in the emulator on
-the real firmware; open work and test status are in the GitHub issue tracker.
-Design notes for contributors and agents are in `.claude/skills/`.
+| mod | what |
+|---|---|
+| [`digigrain`](mods/digigrain) | a granular playback SRC machine (id 6, GRANULAR), verified in the emulator on the real firmware |
 
 ## Prerequisites
 
@@ -19,20 +21,24 @@ Design notes for contributors and agents are in `.claude/skills/`.
 ## Quickstart
 
 ```sh
-make build   # core + mod -> out/
-make lint    # mod alone and combined with core
-make patch   # out/test.syx = stock + core + mod
+make build   # core + every mod -> out/core, out/<mod>/
+make lint    # dependency-rule check, then each mod alone and combined with core
+make patch   # out/<mod>/test.syx = stock + core + that mod
 make test    # unit tests (stdlib only)
 make check   # all of the above
+make check MOD=digigrain    # one mod only
+make new-mod NAME=my-mod    # scaffold a new mod from templates/mod
 ```
 
 ## Layout
 
-- `mod/` — the elekloader mod: `grain.c` (engine), `granular.c` (firmware glue), `synth.s` (render hooks), `page.s` (SRC page layout + label hooks), `machine.s` (machine descriptor)
-- `scripts/` — build/lint/patch/check wrappers
-- `tests/` — host tests (`test_grain.py` vs a Python model, `test_build.py`); `tests/emu/` digiemu probes (see the digitakt-testing skill)
-- `tools/` — generators: `gen_tables.py` -> `mod/tables.h` (windows, pitch ratios), `gen_page_sites.py` -> descriptor and label-hook sites in `mod/mod.json`
-- `.claude/skills/` — agent notes for mod development
+- `mods/<name>/` — one self-contained mod: `mod.json`, `src/`, `tests/` (host tests; `tests/emu/` digiemu probes), optional `tools/` generators, `CLAUDE.md`
+- `common/` — code shared by mods (`include/`, `src/`, `tests/`); mods opt in per file. Mods depend on `common/`, never on each other (enforced by `tools/check_boundaries.py` in `make lint`)
+- `scripts/` — mod-agnostic build/lint/patch/test/check wrappers (`MOD=<name>` selects one mod)
+- `tests/` — checks that apply to every mod (`test_build.py`)
+- `tools/` — `stage_mod.py` (stages a mod with `common/` for the SDK), `check_boundaries.py`
+- `templates/mod/` — scaffold used by `make new-mod`
+- `.claude/skills/` — agent notes for mod development (platform knowledge shared by all mods)
 
 ## Flashing and recovery
 
