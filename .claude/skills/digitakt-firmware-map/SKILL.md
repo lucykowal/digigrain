@@ -31,6 +31,10 @@ Sources: `../digi1_mods/docs/TECHNICAL_NOTES.md` (1295 lines; 39-165 engine/mach
 - `OS_SMP_TAB 0x403193A0`: 128 slots x 16 B `{PCM ptr, rate, length, ratio}`; PCM valid in 0x40000000-0x50000000, understood as **s16** (digislicer `slice.c`). `OS_REF_TAB 0x421F230C` (+4 content hash). Free sample pool 0x400eb782. Stock slice table 0x402F9380+0x400*slot.
 - SLICE window fn 0x40074df2 (per block per SLICE voice): args p(+4: PLAY at +2, SLICE +8, LEN +10, GRID +12 high bytes), note<<16, length, voice; returns start/end in d0/d1. PLAY reads patched at 0x40075282, 0x400759dc, 0x400760ba (inside FAST AUDIO block; absolute only). Resampler delay ~14 samples on direction change.
 
+- Audio input / recorder (details in `digitakt-audio-input` and `digitakt-recorder`): RX ring `0x80001000` (2 x 0x100 B), output stage + master mix
+  `0x40071c20` (call 0x4007814a), IN L/R blocks `0x80001e18/e98`, recorder block fn `0x40076650` (call 0x400782cc), state `0x4199e114`, record buffer
+  s16 plane `0x4237DF90` (33 s mono), sample-table setter `0x400763b4(slot,ptr,bytes,rate)`, reserved audition slot `0x82` (valid slots are 0..0x82).
+
 ## UI
 - Views: vtable slot 2 consumeKey, 4 draw(this,bmp), 11 tick. Key dispatch 0x400cab06; LED dispatch 0x400ca40a. MainScreenView ctor 0x4002f088, vtable 0x40182f68. TRIG page vtable 0x40184004; SRC key handler 0x4003b272 (vptr 0x401848dc); master view vtable 0x401845d8. Menus: SETTINGS 0x40058800, GLOBAL FX/MIX 0x4004468e (tail 0x40044acc), `ITEM_CTOR 0x400c423c`, `MENU_ADD 0x400c3a72`. Bitmap vtable 0x401b73b4; font `0x40200b0c`. `sprintf 0x40000e82`, `vsprintf 0x400005e0`.
 - Machine list items 0x4002a736/0x40022f6a; icons 0x40029e80/0x40029e9c (see `digitakt-machines`).
