@@ -1,6 +1,6 @@
 {
  "id": "digigrain",
- "version": "0.0.2",
+ "version": "0.0.3",
  "title": "Digigrain",
  "category": "Machines",
  "author": "lucykowal",
@@ -57,6 +57,18 @@
    "stock": "7203202f0004",
    "op": "jmp",
    "target": "digigrain_layout"
+  },
+  {
+   "addr": "0x400a4362",
+   "stock": "47f9401a9d9c45f9401062dc",
+   "op": "jmp",
+   "target": "digigrain_dest_names"
+  },
+  {
+   "addr": "0x40065dc8",
+   "stock": "2c3c401a9d9c",
+   "op": "jmp",
+   "target": "digigrain_dest_icon"
   },
   {
    "addr": "0x4000fe8a",

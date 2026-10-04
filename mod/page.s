@@ -179,3 +179,94 @@ digigrain_caption:                              | 0x4000f324(obj, id, word, out)
 9:      lea     -20(%sp), %sp                   | the replaced instructions
         movem.l %d2-%d4/%a2-%a3, (%sp)
         jmp     CAPTION_ON
+
+| LFO DEST list and icon. The firmware names a destination from the descriptor of the parameter id found for
+| it (the list holds the ids of the stock machine GRANULAR borrows its parameters from: ONESHOT's 0x6c-0x73),
+| so a GRANULAR track would see PLAY, BR, STRT, LEN and LOOP. Two readers need a say, both reading
+| descriptor + id * 52 from 0x401a9d9c: the list/text formatter 0x400a42ec (long name +0x28, short +0x30;
+| table in a3, id * 52 in d0, id in d2) and the DEST knob's icon 0x40065d3e (group +0x2c, short label
+| +0x30; table in d6, id * 52 in d0, id in d3). Each hook sits over the instruction(s) that load the
+| table. When the active track (UI kit, 0x4197b6b4) is GRANULAR and the id is PLAY, BR, STRT, LEN or
+| LOOP, it points the table at our small one (digigrain_dest_tab) and the id (and id * 52) at the index
+| there; everything else runs the stock code.
+        .equ    DEST_ON,    0x400a436e          | stock: after the two lea
+        .equ    ICON_ON,    0x40065dce          | stock: after the move.l that loads the table
+        .equ    DESC_TAB,   0x401a9d9c
+        .equ    ACTIVE_TRK, 0x4197b6b4          | the current track (long, 0-7 audio tracks)
+        .equ    UI_KIT,     0x4199dc44
+
+        .macro  GRANULAR_ONLY fail              | falls through only if the active track is GRANULAR (uses d1, a0, a1)
+        move.l  ACTIVE_TRK, %d1
+        cmpi.l  #7, %d1
+        bhi.w   \fail
+        add.l   %d1, %d1                        | a1 = 0xa2 * track (162 = 128 + 32 + 2)
+        move.l  %d1, %a1
+        lsl.l   #4, %d1
+        adda.l  %d1, %a1
+        lsl.l   #2, %d1
+        adda.l  %d1, %a1
+        move.l  UI_KIT, %a0
+        cmpa.l  #0, %a0
+        beq.w   \fail
+        lea     0x20(%a0,%a1.l), %a0            | the track's sound
+        move.b  0x7e(%a0), %d1                  | its machine
+        cmpi.b  #MACHINE, %d1
+        bne.w   \fail
+        .endm
+
+        .macro  NAMES_ID id, idx
+        moveq   #\id, %d1
+        cmp.l   %d1, %d2
+        bne.s   8f
+        moveq   #\idx, %d2
+        move.l  #\idx * 52, %d0
+        lea     digigrain_dest_tab, %a3
+        jmp     DEST_ON
+8:
+        .endm
+
+        .macro  ICON_ID id, idx
+        moveq   #\id, %d1
+        cmp.l   %d1, %d3
+        bne.s   8f
+        moveq   #\idx, %d3
+        move.l  #\idx * 52, %d0
+        move.l  #digigrain_dest_tab, %d6
+        jmp     ICON_ON
+8:
+        .endm
+
+        .globl  digigrain_dest_names, digigrain_dest_icon
+digigrain_dest_names:
+        lea     DESC_TAB, %a3                   | the replaced instructions
+        lea     0x401062dc, %a2
+        GRANULAR_ONLY 9f
+        NAMES_ID 0x6d, 0                        | PLAY -> ENV
+        NAMES_ID 0x6e, 1                        | BR   -> RATE
+        NAMES_ID 0x70, 2                        | STRT -> POS
+        NAMES_ID 0x71, 3                        | LEN  -> RTIO
+        NAMES_ID 0x72, 4                        | LOOP -> SPRD
+9:      jmp     DEST_ON
+
+digigrain_dest_icon:
+        move.l  #DESC_TAB, %d6                  | the replaced instruction
+        GRANULAR_ONLY 9f
+        ICON_ID 0x6d, 0
+        ICON_ID 0x6e, 1
+        ICON_ID 0x70, 2
+        ICON_ID 0x71, 3
+        ICON_ID 0x72, 4
+9:      jmp     ICON_ON
+
+        .equ    GROUP_SAMPLE, 0x401c6afe        | the stock "Sample" group string (+0x2c of ids 0x6c-0x73)
+        .macro  DEST_ENTRY long, short          | 52 bytes: only +0x28, +0x2c and +0x30 are read
+        .space  40
+        .long   \long, GROUP_SAMPLE, \short
+        .endm
+        .balign 4
+digigrain_dest_tab:
+        DEST_ENTRY digigrain_str_env_long, digigrain_str_env
+        DEST_ENTRY digigrain_str_rate_long, digigrain_str_rate
+        DEST_ENTRY digigrain_str_pos_long, digigrain_str_pos
+        DEST_ENTRY digigrain_str_rtio_long, digigrain_str_rtio
+        DEST_ENTRY digigrain_str_sprd_long, digigrain_str_sprd
