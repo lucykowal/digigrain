@@ -1,4 +1,4 @@
-# lucys-mod
+# digigrain collection
 
 Elekloader mods for the Elektron Digitakt mk1 (OS 1.53). One repo, one directory per mod under `mods/`, shared code in
 `common/`, shared platform knowledge in the skills in `.claude/skills/`. Open work, what is verified and what is not are

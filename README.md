@@ -1,4 +1,4 @@
-# lucys-mod
+# digigrain collection
 
 Custom firmware mods for the Elektron Digitakt (mk1, OS 1.53), built with
 [elekloader](../elekloader). One directory per mod under `mods/`; shared code in `common/`.
