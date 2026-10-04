@@ -79,18 +79,21 @@ if os.environ.get("GRANULAR"):                              # our build: switch 
                  2300: ("press", 24), 2320: ("release", 24)})                                         # trig key 1
 # TURNS="knob:delta:count,..." (knob 1..8 = A..H) turns encoders after the machine is selected;
 # every event is 6 steps after the last (the firmware wants small, spaced events)
-_t = 2100
+_t = int(os.environ.get("TURNS_FROM", "2100"))
 for kv in (t for t in os.environ.get("TURNS", "").split(",") if t):
     kn, dl, *cnt = kv.split(":")
     for _ in range(int(cnt[0]) if cnt else 1):
         PLAN[_t] = ("encoder", int(kn), int(dl))
         _t += 6
     _t += 30
-if os.environ.get("SITE_COUNTS") or os.environ.get("ARG_TRACE"):            # spike: just look at the SRC page and turn knobs E then C
+if (os.environ.get("SITE_COUNTS") or os.environ.get("ARG_TRACE")) and not os.environ.get("SITE_STEPS"):            # spike: just look at the SRC page and turn knobs E then C
     PLAN = {}
     for i in range(3):
         PLAN[800 + 6 * i] = ("encoder", 5, 4)
         PLAN[900 + 6 * i] = ("encoder", 3, 4)
+for kv in (t for t in os.environ.get("PRESSES", "").split(",") if t):      # PRESSES="step:key,..." taps a key (23 = LFO) for 20 steps
+    st_, key_ = (int(x) for x in kv.split(":"))
+    PLAN[st_], PLAN[st_ + 20] = ("press", key_), ("release", key_)
 STEPS = 4400
 state = {"n": 0, "rows": []}
 
@@ -178,11 +181,20 @@ def spin(m, pc, *args, **kw):
                     pp0 = struct.unpack(">I", rd(u, sp0 + 16, 4))[0]
                     r0 = struct.unpack(">I", rd(u, pp0 + 4, 4))[0]
                     state.setdefault("rates", {})[r0] = state.setdefault("rates", {}).get(r0, 0) + 1
-                if os.environ.get("TRACE_GR") and state["n"] >= 2300 and state.get("tr", 0) < 6:
+                if os.environ.get("TRACE_GR") and state["n"] >= int(os.environ.get("TRACE_FROM", "2300")) and state.get("tr", 0) < int(os.environ.get("TRACE_N", "6")) and (not os.environ.get("TRACE_SPREAD") or state.get("trn") != state["n"]):
+                    state["trn"] = state["n"]
                     sp = u.reg_read(UC_M68K_REG_A7)
                     vptr, pcmp, ln, pp, outp = struct.unpack(">5I", rd(u, sp + 4, 20))
                     state["tr"] = state.get("tr", 0) + 1
                     print("gr_block: len", ln, "params", struct.unpack(">8i", rd(u, pp, 32)))
+            if os.environ.get("PRE_DUMP"):         # voice 0's words 17-24: smoothed (after LFOs) vs the knob values, at digigrain_granular_pre
+                def pre_dump(u, a, sz, d):
+                    if state["n"] >= int(os.environ.get("PRE_FROM", "2300")) and state.get("pd", 0) < int(os.environ["PRE_DUMP"]) and state.get("pn") != state["n"]:
+                        state["pd"], state["pn"] = state.get("pd", 0) + 1, state["n"]
+                        sm_ = struct.unpack(">8H", rd(u, 0x80002772 + 34, 16))
+                        tg_ = struct.unpack(">8H", rd(u, 0x80001502 + 34, 16))
+                        print("PRE step", state["n"], "smoothed", [hex(x) for x in sm_], "knobs", [hex(x) for x in tg_])
+                uc.hook_add(UC_HOOK_CODE, pre_dump, begin=MAP["digigrain_granular_pre"], end=MAP["digigrain_granular_pre"])
             if "gr_block" in MAP:
                 uc.hook_add(UC_HOOK_CODE, at_block, begin=MAP["gr_block"], end=MAP["gr_block"])
             for name in ("digigrain_synth_all", "digigrain_granular_render", "digigrain_granular_machine"):
@@ -191,13 +203,21 @@ def spin(m, pc, *args, **kw):
                                 begin=MAP[name], end=MAP[name])
         state["uc"] = uc
         def arg_hook(u, ad, sz, d):
+            if state["n"] < int(os.environ.get("ARG_FROM", "0")):
+                return
             sp = u.reg_read(UC_M68K_REG_A7)
             a1, a2 = struct.unpack(">II", rd(u, sp + 4, 8))
+            ret = struct.unpack(">I", rd(u, sp, 4))[0]
             try:
                 vt = struct.unpack(">I", rd(u, a1, 4))[0]
             except Exception:
                 vt = None
-            arg_seen.add((hex(ad), hex(a1 >> 16), hex(vt) if vt is not None else None, hex(a2)))
+            try:                                          # the object at a1+16 and its vtable (the page's sound reference)
+                o16 = struct.unpack(">I", rd(u, a1 + 16, 4))[0]
+                vt16 = struct.unpack(">I", rd(u, o16, 4))[0]
+            except Exception:
+                o16 = vt16 = None
+            arg_seen.add((hex(ad), hex(ret), hex(a1 >> 16), hex(vt) if vt is not None else None, hex(a2), hex(vt16) if vt16 is not None else None))
         def ret_hook(u, ad, sz, d):        # RET_TRACE: who calls the function at `ad` (return address, after step 2100)
             if state["n"] >= 2100:
                 sp_ = u.reg_read(UC_M68K_REG_A7)
@@ -211,7 +231,7 @@ def spin(m, pc, *args, **kw):
             addr_s, reg_s = spec.split(":")
             def reg_hook(u, ad, sz, d, reg=getattr(_mc, "UC_M68K_REG_" + reg_s), name=spec):
                 cnt = state.setdefault("regcnt", {})
-                if state["n"] >= 2300 and cnt.get(name, 0) < 3:
+                if state["n"] >= 2300 and cnt.get(name, 0) < int(os.environ.get("REGS_N", "3")):
                     cnt[name] = cnt.get(name, 0) + 1
                     print("REG", name, hex(u.reg_read(reg)), "step", state["n"])
             uc.hook_add(UC_HOOK_CODE, reg_hook, begin=int(addr_s, 16), end=int(addr_s, 16))
@@ -230,7 +250,19 @@ def spin(m, pc, *args, **kw):
             def wr(u, access, address, size, value, d):
                 if state["n"] >= 1700:
                     watch_seen.add((hex(address), hex(u.reg_read(UC_M68K_REG_PC))))
+                    if os.environ.get("WATCH_STACK") and state.get("wsn", 0) < int(os.environ.get("WATCH_N", "3")):       # the first reads' stack: return addresses show the caller chain
+                        state["wsn"] = state.get("wsn", 0) + 1
+                        sp_ = u.reg_read(UC_M68K_REG_A7)
+                        print("WSTACK step", state["n"], "pc", hex(u.reg_read(UC_M68K_REG_PC)), [hex(x) for x in struct.unpack(">24I", rd(u, sp_, 96))])
             uc.hook_add(_MR, wr, begin=int(a_s, 16), end=int(a_s, 16) + 1)
+        from unicorn import UC_HOOK_MEM_WRITE as _MW
+        for a_s in (x for x in os.environ.get("WATCHW", "").split(",") if x):   # WATCHW="addr,..." log the pcs (and stack) that write these bytes
+            def ww(u, access, address, size, value, d):
+                if state["n"] >= int(os.environ.get("WATCHW_FROM", "2300")) and state.get("wwn", 0) < int(os.environ.get("WATCH_N", "3")):
+                    state["wwn"] = state.get("wwn", 0) + 1
+                    sp_ = u.reg_read(UC_M68K_REG_A7)
+                    print("WWRITE step", state["n"], "addr", hex(address), "value", hex(value), "pc", hex(u.reg_read(UC_M68K_REG_PC)), [hex(x) for x in struct.unpack(">12I", rd(u, sp_, 48))])
+            uc.hook_add(_MW, ww, begin=int(a_s, 16), end=int(a_s, 16) + 3)
         for a in ARG_TRACE:
             uc.hook_add(UC_HOOK_CODE, arg_hook, begin=a, end=a)
         for a in SITES:
@@ -270,10 +302,10 @@ def spin(m, pc, *args, **kw):
             data = rd(state["uc"], a_, l_)
             for off in range(0, l_, 16):
                 print("MEM %08x: %s" % (a_ + off, " ".join("%02x" % b for b in data[off:off + 16])))
-    if ARG_TRACE and n == 1150:
+    if ARG_TRACE and n == int(os.environ.get("ARG_STEP", "1150")):
         for t in sorted(arg_seen):
             print("ARGS", t)
-    if SITES and n in (700, 790, 880, 1000, 1100):
+    if SITES and n in (tuple(int(x) for x in os.environ["SITE_STEPS"].split(",")) if os.environ.get("SITE_STEPS") else (700, 790, 880, 1000, 1100)):   # SITE_STEPS keeps the normal PLAN
         print("SITES step %d:" % n, {hex(k): v for k, v in sorted(site_hits.items()) if v})
         site_hits.clear()
     act = PLAN.get(n)

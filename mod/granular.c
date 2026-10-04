@@ -36,7 +36,6 @@ typedef int s32;
 #define BLOCKS     0x80001a18u            /* 8 voice blocks of 32 x s32, 128 bytes apart */
 #define VOICE(v)   (0x8000edc4u + 94u * (v))
 #define SMOOTHED(v) (0x80002772u + 106u * (v)) /* what the synth reads; word s at +2 s */
-#define TARGET(v)  (0x80001502u + 106u * (v))  /* the knob values themselves */
 #define EXPANDED(v) (0x80002b50u + 212u * (v)) /* 32-bit copy (value << 16), word s at +4 s */
 #define TRIGMASK   0x80001228u            /* bit v: voice v starts this block */
 #define SMP_TAB    0x403193a0u            /* 16 bytes a slot: PCM ptr, u16, length, ratio */
@@ -54,6 +53,12 @@ typedef int s32;
 
 extern volatile unsigned char core_track_machine[8]; /* core 2.1: each track's machine */
 
+/* The words GRANULAR reads, as the stock voice saw them after smoothing and the LFOs: the knob values
+ * (engine copy 0x80001502 + 106 v) carry no modulation. Word s is live[v][s - W_ENV]. pre() copies them out before it
+ * neutralises the shadow's words; they are put back after the synth (the smoothing stage slews each
+ * word from its previous value, so leaving the neutral values would corrupt that state). */
+static u16 live[8][W_LEV - W_ENV + 1];
+
 static gvoice_t gv[8];
 static struct {
     s32 prev_pos;
@@ -62,23 +67,45 @@ static struct {
     int init;
 } st[8];
 
+/* The shadow's neutral words: STRT, LEN and LOOP = the full sample, PLAY = FWD.L (loops, so the voice
+ * outlives the sample). Slots to override, the value in the smoothed copy (the 32-bit one is value << 16). */
+static const u8 shadow_slot[4] = {W_POS, W_RTIO, W_SPRD, W_PLAY};
+static const u16 shadow_val[4] = {0, 0x7f00, 0, 0x0200};
+static u16 saved_sm[8][4];
+static u32 saved_ex[8][4];
+static u8 shadowed[8];                /* pre() ran for this voice this block */
+
 /* Before the stock synth: GRANULAR voices get a whole-sample, forward, looping shadow. */
 void digigrain_granular_pre(void)
 {
-    int v;
+    int v, i;
     for (v = 0; v < 8; v++)
         if (core_track_machine[v] == MACHINE_ID) {
             volatile u16 *sm = (volatile u16 *)SMOOTHED(v);
             volatile u32 *ex = (volatile u32 *)EXPANDED(v);
-            sm[W_POS] = 0;                /* the shadow's STRT, LEN and LOOP: full sample */
-            sm[W_RTIO] = 0x7f00;
-            sm[W_SPRD] = 0;
-            sm[W_PLAY] = 0x0200;          /* FWD.L: loops, so the voice outlives the sample */
-            ex[W_POS] = 0;
-            ex[W_RTIO] = 0x7f00u << 16;
-            ex[W_SPRD] = 0;
-            ex[W_PLAY] = 0x0200u << 16;
+            for (i = 0; i < W_LEV - W_ENV + 1; i++)
+                live[v][i] = sm[W_ENV + i];
+            for (i = 0; i < 4; i++) {
+                saved_sm[v][i] = sm[shadow_slot[i]];
+                saved_ex[v][i] = ex[shadow_slot[i]];
+                sm[shadow_slot[i]] = shadow_val[i];
+                ex[shadow_slot[i]] = (u32)shadow_val[i] << 16;
+            }
+            shadowed[v] = 1;
         }
+}
+
+/* After the synth: give the stock smoothing its own words back. */
+static void unshadow(int v)
+{
+    volatile u16 *sm = (volatile u16 *)SMOOTHED(v);
+    volatile u32 *ex = (volatile u32 *)EXPANDED(v);
+    int i;
+    for (i = 0; i < 4; i++) {
+        sm[shadow_slot[i]] = saved_sm[v][i];
+        ex[shadow_slot[i]] = saved_ex[v][i];
+    }
+    shadowed[v] = 0;
 }
 
 /* A 0..127 knob with noon at 64 -> side (-1 CCW, 0 none, +1 CW) and amount 0..64 */
@@ -98,7 +125,7 @@ static int noon_side(int v, int *amount)
 static void render_voice(int v)
 {
     u32 vs = VOICE(v);
-    const volatile u16 *w = (const volatile u16 *)TARGET(v);
+    const u16 *w = live[v] - W_ENV;       /* w[W_ENV..W_LEV]: with the LFOs applied */
     volatile s32 *blk = (volatile s32 *)(BLOCKS + 128u * v);
     int on, lev, f, len, g, side, amount, kk, pp, out[GR_FRAMES];
     u32 slot, ent, hz16;
@@ -169,8 +196,11 @@ static void render_voice(int v)
 void digigrain_granular_render(void)
 {
     int v;
-    for (v = 0; v < 8; v++)
+    for (v = 0; v < 8; v++) {
         render_voice(v);
+        if (shadowed[v])
+            unshadow(v);
+    }
 }
 
 /* ev_tick (30 Hz, UI task): when a track newly becomes GRANULAR and its knobs hold the stock
