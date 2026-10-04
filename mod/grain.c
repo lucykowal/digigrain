@@ -208,6 +208,7 @@ void gr_block(gvoice_t *v, const short *pcm, int len, const gparams_t *p, int ou
 {
     int acc[GR_HALF];
     int i, f, ran = 0;
+#pragma GCC unroll 16
     for (f = 0; f < GR_HALF; f++)
         acc[f] = 0;
     if (len >= 4) {
@@ -246,6 +247,7 @@ void gr_block(gvoice_t *v, const short *pcm, int len, const gparams_t *p, int ou
      * between it and the one before (so the output lags by half a 24 kHz frame) */
     {
         int prev = v->last;
+#pragma GCC unroll 4
         for (f = 0; f < GR_HALF; f++) {
             int s = acc[f] > 32767 ? 32767 : acc[f] < -32768 ? -32768 : acc[f];
             out[2 * f] = (prev + s) >> 1;
