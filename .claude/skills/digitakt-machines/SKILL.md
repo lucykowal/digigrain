@@ -80,3 +80,6 @@ Measured per `digigrain_granular_render` call, one voice (digiemu, `tests/emu/be
 1. Voice stealing with p-locked sample slots; eight dense voices at once.
 2. Pitch mapping of note -> sample pitch is avoided by reading V+4 deltas.
 3. Meaning of the sample table's +4 u16.
+
+## RESAMPLE (digiresample, machine id 7; `resample/`)
+A second machine in its own mod; **conflicts with digigrain**: both take the spare descriptors 1-2 (digigrain 1-3) and hook the same sites (synth calls, `0x400657cc`, label/readout/LFO-dest hooks), so elekloader refuses the pair (`scripts/patch.sh` checks it). Plays as ONESHOT; params A TUNE, B PLAY, C BR, D REC/PLAY (descriptor id 1 on word 20, SAMP's), E STRT, F LEN, G SRC (id 2 on word 23, LOOP's), H LEV. `tools/gen_resample_sites.py` writes `resample/mod.json`. How it drives the recorder and the slot 0x82 voice is in `digitakt-recorder` ("Verified in digiemu by the RESAMPLE machine"). Not done: the WERP-MODE-style icons on D (the readout is the text REC/PLAY; the icon path is not found), a gate for sequenced note offs (a live trig key release works, a sequenced note stops recording when the voice ends), and hardware.

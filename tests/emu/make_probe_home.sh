@@ -3,7 +3,7 @@
 # for tests/emu/scale_probe.py. Needs ../digiemumac set up (see the digitakt-testing skill).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-EMU="$ROOT/../digiemumac"; HOME_DIR="${HOME_DIR:-$ROOT/out/emu/home}"; WAV="$ROOT/out/emu/sine440.wav"
+EMU="${DIGIEMU:-$ROOT/../digiemumac}";HOME_DIR="${HOME_DIR:-$ROOT/out/emu/home}"; WAV="$ROOT/out/emu/sine440.wav"
 SYX="${SYX:-$ROOT/../Digitakt_OS1.53.syx}"   # stock by default; SYX=out/test.syx for our build
 mkdir -p "$ROOT/out/emu"
 python3 - "$WAV" <<'PY'

@@ -13,6 +13,9 @@ uv run --project ../digiemumac python tests/emu/grain_bench.py   # ColdFire inst
 SYX=$PWD/out/test.syx tests/emu/make_probe_home.sh                # emulator home for our build, then:
 GRANULAR=1 FW_DIR=out/emu/home/firmware/<newest> uv run --project ../digiemumac python tests/emu/scale_probe.py
 ```
+RESAMPLE (a separate mod, `resample/`, conflicts with digigrain; build gives `out/resample/digiresample-*.elemod` and `out/test-resample.syx`):
+`SYX=$PWD/out/test-resample.syx tests/emu/make_probe_home.sh`, then `FW_DIR=out/emu/home/firmware/<newest> uv run --project ../digiemumac python tests/emu/resample_probe.py`
+(records an injected sine, plays it back; `DIGIEMU`, `ELEKLOADER_DIR`, `ELEKLOADER_STOCK` override the sibling paths, needed inside a worktree).
 The elemods are `out/mod/digigrain-*.elemod` and `out/core/core-2.1.elemod` (load both in elekloader).
 
 ## Working agreements

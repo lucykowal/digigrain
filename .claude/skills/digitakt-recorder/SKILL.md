@@ -88,3 +88,21 @@ the "Verify" list at the end is the first work to do. Companion skills: `digitak
 3. Identify who writes `0x4197bf98/9c/a0` (settings -> audio mirror) so a mod can set the source.
 4. Measure the capture-block scale for each source (`0x800032c4` after `0x40076650`).
 5. Check whether the planes are in the cached region, and the cost of a granular read from DDR vs SRAM (see `digitakt-dsp`).
+
+## Verified in digiemu by the RESAMPLE machine (`resample/`, `tests/emu/resample_probe.py`)
+No hardware yet. Everything below was measured with the emulator (a 440 Hz sine injected into the capture block at `0x40076742`, i.e.
+inside `0x40076650` right after the source switch: that function goes on to run the envelope followers and the plane store, so injecting after
+its caller's `jsr` is too late; the injected sine came out at 480 Hz in the buffer, a test artefact, playback matched the buffer 1:1).
+- **Start/stop/discard are plain state writes** (decompiled): `0x400768ce` (states 0, 1, 4 -> 2; returns 0 from 2/3), `0x4007693c` (1, 2, 4 -> 0),
+  `0x40076918` (2 -> 3 and posts the normalize message). Safe to call from the render ISR hook (`digiresample_pre`): a held REC note recorded 153,440
+  frames, the stop went 2 -> 3 -> 4 by itself. Restarting from state 2 needs the discard first.
+- **`0x4197bf98` (the SRC) is read every block by `0x40076650` and has no static writer**; poking it from the render hook selects the source (9 -> TRK1 took effect).
+  The RECORDER page's own SRC setting (UI getter `0x4001f09e` reads `obj+0x8ec`) is not updated by the poke.
+- **The slot 0x82 recipe works**: `0x40074fd0(0x82)` + `0x400763b4(0x82, 0x4237DF90, 2*len, 48000)` at state 4 makes the stock voice play the buffer at unity speed
+  (pitch matched the recording), but **a voice latches its sample at the trig**: the voice struct holds the slot's PCM pointer at `V+0x00`, length (samples) at
+  `V+0x14` and ratio at `V+0x18` (`V = 0x8000edc4 + 94 v`), so after pointing `V+0x5c` at 0x82 a mod must copy those three from `OS_SMP_TAB[0x82]` too
+  (writing only `V+0x5c` plays the stale entry, here the empty stub `0x40319bd0`, 248 samples).
+- **A voice with a stub or empty sample ends after ~8 blocks** (REC voice with SAMP 0); forcing the smoothed and expanded PLAY word to FWD.L (0x0200) keeps it on.
+- Trig key state: the long at `0x800019f4` is a bitmask of held trig keys (key 1 = 1, key 2 = 2). `TRIGMASK` (`0x80001228`) bit v is set for exactly one block at the trig
+  and is already set when `pre()` runs. The voice's `V+0x28` (on) does **not** drop at a key release (the amp envelope runs its release), and we found no gate flag for sequenced notes.
+- The record buffer is normalized at the end of a take (state 3), so a quiet take is louder than the source.

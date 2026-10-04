@@ -1,0 +1,140 @@
+{
+ "device": "digitakt-mk1",
+ "os": "1.53",
+ "license": "GPL-2.0-or-later",
+ "author": "lucykowal",
+ "requires": [
+  "core"
+ ],
+ "id": "digiresample",
+ "version": "0.0.1",
+ "title": "Digiresample",
+ "category": "Machines",
+ "description": "Adds a RESAMPLE SRC machine (id 7): D = REC/PLAY drives the RECORDER from the sequencer (REC records while the note is held, PLAY plays the buffer through the stock voice: TUNE, PLAY, BR, STRT, LEN, LEV), G = the RECORDER's SRC. Conflicts with digigrain (same page hooks).",
+ "sources": [
+  "resample.c",
+  "readout.c",
+  "machine.s",
+  "synth.s",
+  "page.s"
+ ],
+ "contribute": [
+  {
+   "to": "core_machines",
+   "order": 51,
+   "data": "00000000",
+   "relocs": [
+    [
+     0,
+     "abs32",
+     "sym:digiresample_machine",
+     0
+    ]
+   ]
+  }
+ ],
+ "resources": {
+  "names": [
+   "machine:7"
+  ]
+ },
+ "sites": [
+  {
+   "addr": "0x40077f8e",
+   "stock": "4eb940075184",
+   "op": "keep2",
+   "target": "digiresample_synth_pre"
+  },
+  {
+   "addr": "0x40077fa6",
+   "stock": "4eb9400757fe",
+   "op": "keep2",
+   "target": "digiresample_synth_all"
+  },
+  {
+   "addr": "0x400657cc",
+   "stock": "7203202f0004",
+   "op": "jmp",
+   "target": "digiresample_layout"
+  },
+  {
+   "addr": "0x400a4362",
+   "stock": "47f9401a9d9c45f9401062dc",
+   "op": "jmp",
+   "target": "digiresample_dest_names"
+  },
+  {
+   "addr": "0x40065dc8",
+   "stock": "2c3c401a9d9c",
+   "op": "jmp",
+   "target": "digiresample_dest_icon"
+  },
+  {
+   "addr": "0x400657ee",
+   "stock": "222f00040c81000000a4",
+   "op": "jmp",
+   "target": "digiresample_readout"
+  },
+  {
+   "addr": "0x4000f324",
+   "stock": "4fefffec48d70c1c",
+   "op": "jmp",
+   "target": "digiresample_caption"
+  },
+  {
+   "addr": "0x401a9dd0",
+   "stock": "ffffffffffffffff0000000000000000000000000000000100010021ffffffff0000000100000000",
+   "op": "bytes",
+   "new": "0000000700000014000000000000010000000000000000010011ffff000000810000006f00000e00"
+  },
+  {
+   "addr": "0x401a9df8",
+   "stock": "401c21e8",
+   "op": "ptr",
+   "target": "digiresample_str_mode_long"
+  },
+  {
+   "addr": "0x401a9dfc",
+   "stock": "401c5847",
+   "op": "bytes",
+   "new": "401c6afe"
+  },
+  {
+   "addr": "0x401a9e00",
+   "stock": "401c1d2f",
+   "op": "ptr",
+   "target": "digiresample_str_mode"
+  },
+  {
+   "addr": "0x401a9e04",
+   "stock": "ffffffffffffffff0000000000000000000000000000000100020022ffffffff0000000200000000",
+   "op": "bytes",
+   "new": "0000000700000017000000000000100000000500000000010016ffff000000860000007400000e00"
+  },
+  {
+   "addr": "0x401a9e2c",
+   "stock": "401c21e8",
+   "op": "ptr",
+   "target": "digiresample_str_src_long"
+  },
+  {
+   "addr": "0x401a9e30",
+   "stock": "401c5847",
+   "op": "bytes",
+   "new": "401c6afe"
+  },
+  {
+   "addr": "0x401a9e34",
+   "stock": "401c1d2f",
+   "op": "ptr",
+   "target": "digiresample_str_src"
+  }
+ ],
+ "subscribe": [
+  {
+   "event": "ev_tick",
+   "fn": "digiresample_tick",
+   "order": 51
+  }
+ ]
+}
