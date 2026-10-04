@@ -55,6 +55,14 @@ description: Playbook for finding things in the Digitakt mk1 OS 1.53 firmware: o
    `0x4000fe8a` and `0x4000feac`. Then log their arguments (`ARG_TRACE="addr,..."` prints the entry address, arg1's high
    half, arg1's vtable and arg2) to learn the signature `(param object, descriptor id)` and what the object is.
 
+9. **Find a feature from its UI strings, then walk out.** Scan the section for printable strings (`RECORDER`, `Stereo In`, `Save recording`), take the
+   class typeinfo name (`11SamplerView`), find the typeinfo then the vtable by searching for the 32-bit pointers (slot 2 consumeKey, 4 draw, 11 tick), then
+   follow the globals the draw/key functions touch. This is how the recorder (`digitakt-recorder`) and its 33 s buffer were found in an hour.
+   Ghidra's decompiler is good on this non-EMAC UI/glue code (`decompile_function_by_address`); read EMAC mixers in objdump.
+10. **Constants name things**: `1584000` (= 33 s x 48 kHz), `0x82` slot, `5760000`, `#32768`, `#2097152` pool sizes; grep for them in the disassembly.
+11. In a background/worktree session, don't prefix commands with `PYTHONPATH=...` (the harness refuses); do `sys.path.insert` inside the python snippet and use
+    absolute paths for sibling checkouts (`/Users/.../elektron/elekloader`). `out/` is per-worktree: regenerate section 3 and `s3.dis` there.
+
 ## Cross-checks
 - Treat any single source (digislicer notes, digi1_mods TECHNICAL_NOTES, a subagent's report) as a hint until a
   disassembly read or an emulator measurement confirms it. Several early assumptions (digiemu's location, which
