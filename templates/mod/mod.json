@@ -1,0 +1,23 @@
+{
+ "id": "@NAME@",
+ "version": "0.0.1",
+ "title": "@NAME@",
+ "category": "Examples",
+ "license": "GPL-2.0-or-later",
+ "description": "TODO: one sentence on what @NAME@ does.",
+ "device": "digitakt-mk1",
+ "os": "1.53",
+ "sources": [
+  "src/@NAME@.c"
+ ],
+ "requires": [
+  "core"
+ ],
+ "subscribe": [
+  {
+   "event": "ev_tick",
+   "fn": "@CNAME@_tick",
+   "order": 50
+  }
+ ]
+}

@@ -1,4 +1,4 @@
-"""Host tests for mod/grain.c: the C code (built as a shared library) against an
+"""Host tests for mods/digigrain/src/grain.c: the C code (built as a shared library) against an
 independent Python model of the same integer arithmetic, plus behaviour checks."""
 import ctypes
 import importlib.util
@@ -10,12 +10,12 @@ import subprocess
 import tempfile
 import unittest
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MOD_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GR_MAX, FRAMES, HALF = 8, 32, 16
 M32 = 0xffffffff
 WPH_ONE = 1 << 24
 
-_spec = importlib.util.spec_from_file_location("gen_tables", os.path.join(ROOT, "tools", "gen_tables.py"))
+_spec = importlib.util.spec_from_file_location("gen_tables", os.path.join(MOD_DIR, "tools", "gen_tables.py"))
 _gt = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_gt)
 SINE, GATE, DECAY, RATIO, AVG = _gt.tables()
@@ -142,8 +142,8 @@ class GrainTest(unittest.TestCase):
         cls.tmp = tempfile.mkdtemp()
         lib = os.path.join(cls.tmp, "libgrain.so")
         subprocess.check_call(["cc", "-O2", "-shared", "-fPIC", "-Wall", "-Werror",
-                               "-I", os.path.join(ROOT, "mod"), "-o", lib,
-                               os.path.join(ROOT, "mod", "grain.c")])
+                               "-I", os.path.join(MOD_DIR, "src"), "-o", lib,
+                               os.path.join(MOD_DIR, "src", "grain.c")])
         cls.lib = ctypes.CDLL(lib)
         cls.lib.gr_block.argtypes = [ctypes.POINTER(Voice), ctypes.POINTER(ctypes.c_short), ctypes.c_int,
                                      ctypes.POINTER(Params), ctypes.POINTER(ctypes.c_int)]

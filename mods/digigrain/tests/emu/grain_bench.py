@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Instruction counts for mod/grain.c's gr_block, compiled for the ColdFire and run in digiemu's
+"""Instruction counts for src/grain.c's gr_block, compiled for the ColdFire and run in digiemu's
 (patched) Unicorn: seconds per run, exact counts.
 
     uv run --project ../digiemumac python tests/emu/grain_bench.py [--blocks N]
@@ -15,9 +15,11 @@ import subprocess
 from unicorn import UC_ARCH_M68K, UC_HOOK_CODE, UC_MODE_BIG_ENDIAN, Uc
 from unicorn.m68k_const import UC_CPU_M68K_CFV4E, UC_M68K_REG_A7, UC_M68K_REG_PC
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MOD_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+OUT_MOD = os.path.join(ROOT, "out", "digigrain")
 CROSS = os.environ.get("ELEKLOADER_CROSS", "m68k-elf-")
-OUT = os.path.join(ROOT, "out", "bench")
+OUT = os.path.join(OUT_MOD, "bench")
 CODE, DATA, STACK, STOP = 0x100000, 0x200000, 0x300000, 0x1000
 GR_MAX = 8
 GRAIN_BYTES = 7 * 4                 # grain_t: idx frac inc wph winc delay active
@@ -28,8 +30,8 @@ def build():
     os.makedirs(OUT, exist_ok=True)
     obj, elf, binf = (os.path.join(OUT, n) for n in ("grain.o", "grain.elf", "grain.bin"))
     subprocess.check_call([CROSS + "gcc", "-mcpu=54455", "-O2", "-ffreestanding", "-fno-builtin", "-nostdlib",
-                           "-fno-pic", "-fno-pie", "-fomit-frame-pointer", "-Wall", "-I", os.path.join(ROOT, "mod"),
-                           "-c", os.path.join(ROOT, "mod", "grain.c"), "-o", obj])
+                           "-fno-pic", "-fno-pie", "-fomit-frame-pointer", "-Wall", "-I", os.path.join(MOD_DIR, "src"),
+                           "-c", os.path.join(MOD_DIR, "src", "grain.c"), "-o", obj])
     subprocess.check_call([CROSS + "ld", "-Ttext=0x%x" % CODE, "-e", "gr_block", "-o", elf, obj])
     subprocess.check_call([CROSS + "objcopy", "-O", "binary", elf, binf])
     syms = {}

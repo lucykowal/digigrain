@@ -1,4 +1,6 @@
-.PHONY: build lint patch test check clean
+# MOD=<name> limits a target to one mod (mods/<name>); unset runs every mod.  e.g. make check MOD=digigrain
+export MOD
+.PHONY: build lint patch test check clean new-mod
 build:
 	scripts/build.sh
 lint: build
@@ -6,8 +8,10 @@ lint: build
 patch: build
 	scripts/patch.sh
 test:
-	python3 -m unittest discover -s tests -v
+	scripts/test.sh
 check:
 	scripts/check.sh
+new-mod:
+	scripts/new-mod.sh $(NAME)
 clean:
 	rm -rf out

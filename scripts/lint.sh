@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Lint the mod alone and combined with core.
+# Boundary check, then lint each selected mod alone and combined with core.
 set -euo pipefail
 . "$(dirname "$0")/env.sh"
+"$PY" "$ROOT/tools/check_boundaries.py" $MODS
 CORE="$(ls "$OUT"/core/core-*.elemod | head -1)"
-MOD="$(ls "$OUT"/mod/digigrain-*.elemod | head -1)"
-"$PY" -m elekloader.lint "$MOD"
-"$PY" -m elekloader.lint "$MOD" --stock "$ELEKLOADER_STOCK" --with "$CORE"
+for m in $MODS; do
+  M="$(mod_elemod "$m")"
+  "$PY" -m elekloader.lint "$M"
+  "$PY" -m elekloader.lint "$M" --stock "$ELEKLOADER_STOCK" --with "$CORE"
+done

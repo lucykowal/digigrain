@@ -1,4 +1,4 @@
-"""Host tests for mod/readout.c (RATE / SPRD / ENV value readouts): the C code (built as a shared
+"""Host tests for mods/digigrain/src/readout.c (RATE / SPRD / ENV value readouts): the C code (built as a shared
 library) against an independent Python model of the mappings granular.c renders."""
 import ctypes
 import os
@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 import unittest
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MOD_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SPRD, ENV, RATE = 2, 3, 0x6e
 
 
@@ -43,7 +43,7 @@ class ReadoutTest(unittest.TestCase):
         cls.tmp = tempfile.mkdtemp()
         lib = os.path.join(cls.tmp, "libreadout.so")
         subprocess.check_call(["cc", "-O2", "-shared", "-fPIC", "-Wall", "-Werror", "-o", lib,
-                               os.path.join(ROOT, "mod", "readout.c")])
+                               os.path.join(MOD_DIR, "src", "readout.c")])
         cls.lib = ctypes.CDLL(lib)
         cls.lib.rd_format.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
 
@@ -95,7 +95,7 @@ class ReadoutTest(unittest.TestCase):
 
     def test_rate_mapping_matches_engine(self):
         """granular.c's render computes hz16 the same way; keep the two in step."""
-        with open(os.path.join(ROOT, "mod", "granular.c")) as f:
+        with open(os.path.join(MOD_DIR, "src", "granular.c")) as f:
             src = f.read()
         self.assertIn("hz16 = 4 + ((u32)(kk * kk) >> 1);", src)
         self.assertIn("kk = (kk < 0 ? -kk : kk) - 1;", src)

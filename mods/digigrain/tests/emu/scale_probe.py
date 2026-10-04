@@ -2,7 +2,7 @@
 """Measure the voice-block scale of the stock render in digiemu (headless).
 
 Needs a firmware home whose +Drive holds /incoming/sine440 (a 48 kHz mono s16 sine,
-peak 16384; see out/emu in this repo's notes): it loads that sample on track 1 through the
+peak 16384; see out/digigrain/emu in this repo's notes): it loads that sample on track 1 through the
 sample browser, plays it with trig key 1 and, after the voice
 synth calls in the render ISR (0x40077fac), reads the per-voice mono blocks at
 0x80001a18 + 128 * v (32 x int32, big endian). It prints each block's peak and
@@ -10,7 +10,7 @@ the matching source PCM peak from the sample table, so the Q31-vs-s16 scale of
 a block can be read off.
 
     uv run --project ../digiemumac python tests/emu/scale_probe.py          # stock firmware
-    GRANULAR=1 FW_DIR=out/emu/home/firmware/<our build> uv run ... scale_probe.py   # our build:
+    GRANULAR=1 FW_DIR=out/digigrain/emu/home/firmware/<our build> uv run ... scale_probe.py   # our build:
         switches track 1 to GRANULAR first and reports the grain output levels and audio
 
 Env: DIGIEMU (default ../digiemumac), FW_DIR (firmware folder), SHOTS (dir for debug PNGs),
@@ -23,7 +23,9 @@ import struct
 import sys
 import types
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MOD_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+OUT_MOD = os.path.join(ROOT, "out", "digigrain")
 DIGIEMU = os.path.abspath(os.environ.get("DIGIEMU", os.path.join(ROOT, "..", "digiemumac")))
 FW = os.environ.get("FW_DIR") or os.path.join(DIGIEMU, "portable", "firmware", "dt1-1.53-9bdd44bb")
 GAIN_UNIT = 25916                # stock block = s16 x GAIN_UNIT (measured)
@@ -56,7 +58,7 @@ if os.environ.get("GRANULAR"):        # symbol addresses of our build, from elek
     _st = _syx.Syx.load(os.environ.get("ELEKLOADER_STOCK", os.path.join(ROOT, "..", "Digitakt_OS1.53.syx")))
     _d, _r = _dev.identify(_st.sha256)
     _mods = [glob.glob(os.path.join(ROOT, "out", "core", "core-*.elemod"))[0],
-             glob.glob(os.path.join(ROOT, "out", "mod", "digigrain-*.elemod"))[0]]
+             glob.glob(os.path.join(OUT_MOD, "digigrain-*.elemod"))[0]]
     MAP = _link.link([_em.load_any(m) for m in _mods], _st.section(_d.main_section)).map
 import emu.gui as G  # noqa: E402
 
